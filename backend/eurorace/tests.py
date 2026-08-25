@@ -25,13 +25,19 @@ To run these tests:
 """
 
 import json
+from datetime import timedelta
+
 from django.test import TransactionTestCase
 from django.contrib.auth.models import User
 from channels.testing import WebsocketCommunicator
 from channels.db import database_sync_to_async
 from django.contrib.gis.geos import Point
+from django.utils import timezone
+from rest_framework.authtoken.models import Token
+
 from eurorace.asgi import application
-from eurorace.models import LocationReport
+from eurorace.models import DetectedStop, HitchwikiSpot, LocationReport, Race, Team
+from eurorace.services import recommend_hitchwiki_spots, update_team_statistics
 
 
 class LocationConsumerTests(TransactionTestCase):
@@ -43,12 +49,10 @@ class LocationConsumerTests(TransactionTestCase):
         """Test that a WebSocket connection can be established."""
         # Create a test user
         self.user = await self.create_test_user()
+        token = await self.get_token(self.user)
 
         # Connect to the WebSocket
-        communicator = WebsocketCommunicator(application, "ws/location/")
-
-        # Manually set the user in the scope (simulating authentication)
-        communicator.scope["user"] = self.user
+        communicator = WebsocketCommunicator(application, "ws/location/", subprotocols=["Token", token.key])
 
         connected, _ = await communicator.connect()
 
@@ -62,12 +66,10 @@ class LocationConsumerTests(TransactionTestCase):
         """Test that location updates are properly processed and saved."""
         # Create a test user
         self.user = await self.create_test_user()
+        token = await self.get_token(self.user)
 
         # Connect to the WebSocket
-        communicator = WebsocketCommunicator(application, "ws/location/")
-
-        # Manually set the user in the scope (simulating authentication)
-        communicator.scope["user"] = self.user
+        communicator = WebsocketCommunicator(application, "ws/location/", subprotocols=["Token", token.key])
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
@@ -135,6 +137,11 @@ class LocationConsumerTests(TransactionTestCase):
         return user
 
     @database_sync_to_async
+    def get_token(self, user):
+        token, _ = Token.objects.get_or_create(user=user)
+        return token
+
+    @database_sync_to_async
     def location_exists(self, user, latitude, longitude):
         """Check if a location report exists for the given user and coordinates."""
         from django.db import connection
@@ -152,6 +159,55 @@ class LocationConsumerTests(TransactionTestCase):
         ).exists()
 
         return exists
+
+
+class TeamStatisticsTests(TransactionTestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="team-user", password="testpassword")
+        self.race = Race.objects.create(name="Test race", is_active=True)
+        self.team = Team.objects.create(race=self.race, account_user=self.user, display_name="Team 1")
+
+    def test_update_team_statistics_counts_distance_and_elevation(self):
+        first = LocationReport.objects.create(
+            user=self.user,
+            location=Point(21.0122, 52.2297),
+            altitude_m=100,
+        )
+        second = LocationReport.objects.create(
+            user=self.user,
+            location=Point(21.1222, 52.2397),
+            altitude_m=130,
+        )
+        now = timezone.now()
+        LocationReport.objects.filter(pk=first.pk).update(timestamp=now - timedelta(minutes=45))
+        LocationReport.objects.filter(pk=second.pk).update(timestamp=now)
+
+        statistics = update_team_statistics(self.team)
+
+        self.assertGreater(statistics.distance_meters, 0)
+        self.assertEqual(statistics.elevation_gain_meters, 30)
+        self.assertEqual(statistics.duration_seconds, 2700)
+
+    def test_recommend_hitchwiki_spots_from_cache(self):
+        stop = DetectedStop.objects.create(
+            team=self.team,
+            started_at=timezone.now() - timedelta(minutes=40),
+            ended_at=timezone.now(),
+            location=Point(21.0122, 52.2297),
+            radius_meters=100,
+            duration_seconds=2400,
+        )
+        HitchwikiSpot.objects.create(
+            external_id="spot-1",
+            title="Good petrol station",
+            location=Point(21.0222, 52.2297),
+            rating=4.5,
+        )
+
+        recommendations = recommend_hitchwiki_spots(stop)
+
+        self.assertEqual(len(recommendations), 1)
+        self.assertEqual(recommendations[0].spot.title, "Good petrol station")
 
 
 class LocationReportModelTests(TransactionTestCase):

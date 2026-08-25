@@ -1,0 +1,51 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <div id="content-main">
+    <p>
+      Wgraj CSV z kontami par. Obsługiwane kolumny:
+      <code>username,password,team_name,bib_number,contact_email,member_1_name,member_2_name,member_1_email,member_2_email</code>.
+      Jeśli hasło nie zostanie podane, system wygeneruje tymczasowe hasło i pokaże je po imporcie.
+    </p>
+
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="form-row">
+        <label for="race">Wyścig</label>
+        <select name="race" id="race">
+          {% for race in races %}
+            <option value="{{ race.id }}" {% if race.is_active %}selected{% endif %}>{{ race.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="csv_file">Plik CSV</label>
+        <input type="file" id="csv_file" name="csv_file" accept=".csv,text/csv" required>
+      </div>
+      <div class="submit-row">
+        <input type="submit" value="Importuj" class="default">
+      </div>
+    </form>
+
+    {% if generated_credentials %}
+      <h2>Wygenerowane hasła</h2>
+      <p>Zapisz je teraz — po opuszczeniu strony nie będą już widoczne.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Login</th>
+            <th>Hasło</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for credential in generated_credentials %}
+            <tr>
+              <td>{{ credential.username }}</td>
+              <td><code>{{ credential.password }}</code></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+{% endblock %}

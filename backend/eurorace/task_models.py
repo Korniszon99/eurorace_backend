@@ -112,3 +112,17 @@ def assign_task_to_all_users(sender, instance, created, **kwargs):
     if created:  # Tylko dla nowo utworzonych zadań
         # Wywołaj metodę assign_to_all_users na instancji zadania
         instance.assign_to_all_users()
+
+
+@receiver(post_save, sender=User)
+def assign_existing_tasks_to_new_user(sender, instance, created, **kwargs):
+    """Przypisuje istniejące zadania nowemu kontu pary."""
+    if not created:
+        return
+    UserTask.objects.bulk_create(
+        [
+            UserTask(user=instance, task=task)
+            for task in Task.objects.all()
+            if not UserTask.objects.filter(user=instance, task=task).exists()
+        ]
+    )

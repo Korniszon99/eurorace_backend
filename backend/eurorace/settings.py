@@ -218,3 +218,6 @@ EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
 
 # Konfiguracja CORS
 CORS_ALLOW_ALL_ORIGINS = True
+
+# Optional provider endpoint returning Hitchwiki-compatible nearby spots as JSON.
+HITCHWIKI_SPOTS_URL = env.str("HITCHWIKI_SPOTS_URL", default="")

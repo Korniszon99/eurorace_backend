@@ -26,14 +26,18 @@ from rest_framework.routers import DefaultRouter
 from django.conf import settings
 from django.conf.urls.static import static
 
-from eurorace.views import LocationReportViewSet, TaskViewSet
+from eurorace.views import LocationReportViewSet, TaskViewSet, TeamViewSet, live_dashboard, live_dashboard_data
 
 api_router = DefaultRouter()
 
 api_router.register("location-reports", LocationReportViewSet, basename="location-reports")
 api_router.register("tasks", TaskViewSet, basename="tasks")
+api_router.register("teams", TeamViewSet, basename="teams")
 
 urlpatterns = [
+    path("", live_dashboard, name="live-dashboard-root"),
+    path("live/", live_dashboard, name="live-dashboard"),
+    path("live/data/", live_dashboard_data, name="live-dashboard-data"),
     path("admin/", admin.site.urls),
     path("api/auth/", include("dj_rest_auth.urls")),
     path("api/auth/registration/", include("dj_rest_auth.registration.urls")),

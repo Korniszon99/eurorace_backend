@@ -1,9 +1,11 @@
 from drf_extra_fields.geo_fields import PointField
 from rest_framework import serializers
 from dj_rest_auth.registration.serializers import RegisterSerializer
+from django.contrib.auth.models import User
 from django.contrib.gis.geos import Point
 
 from eurorace.models import LocationReport
+from eurorace.models import HitchwikiRecommendation, HitchwikiSpot, Team, TeamMember, TeamStatistics
 from eurorace.task_models import Task, TaskPhoto, UserTask
 
 
@@ -48,10 +50,15 @@ class LocationSerializer(serializers.Serializer):
 
 class LocationReportSerializer(serializers.ModelSerializer):
     location = LocationSerializer()
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
 
     class Meta:
-        fields = ("location", "timestamp", "user")
+        fields = ("location", "timestamp", "user", "altitude_m", "accuracy_m")
         model = LocationReport
+        read_only_fields = ("timestamp",)
+
+    def create(self, validated_data):
+        return LocationReport.objects.create(**validated_data)
 
 
 class TaskPhotoSerializer(serializers.ModelSerializer):
@@ -60,8 +67,12 @@ class TaskPhotoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TaskPhoto
-        fields = ("id", "url", "uploaded_at", "location")
-        read_only_fields = ("id",)
+        fields = ("id", "task", "image", "url", "uploaded_at", "location")
+        read_only_fields = ("id", "url", "uploaded_at")
+        extra_kwargs = {
+            "image": {"write_only": True},
+            "task": {"write_only": True},
+        }
 
     def get_url(self, obj):
         if obj.image:
@@ -123,7 +134,7 @@ class UserTrackSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LocationReport
-        fields = ("latitude", "longitude", "timestamp")
+        fields = ("latitude", "longitude", "timestamp", "altitude_m", "accuracy_m")
 
     def get_latitude(self, obj):
         """Pobiera szerokość geograficzną (latitude) z punktu lokalizacji"""
@@ -146,3 +157,70 @@ class UserTrackResponseSerializer(serializers.Serializer):
     start_time = serializers.DateTimeField(allow_null=True)
     end_time = serializers.DateTimeField(allow_null=True)
     coordinates = UserTrackSerializer(many=True)
+
+
+class TeamMemberSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TeamMember
+        fields = ("id", "full_name", "email", "phone")
+
+
+class TeamStatisticsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TeamStatistics
+        fields = (
+            "started_at",
+            "finished_at",
+            "duration_seconds",
+            "distance_meters",
+            "elevation_gain_meters",
+            "hitch_count",
+            "completed_tasks_count",
+            "last_calculated_at",
+        )
+
+
+class TeamSerializer(serializers.ModelSerializer):
+    members = TeamMemberSerializer(many=True, read_only=True)
+    statistics = TeamStatisticsSerializer(read_only=True)
+    username = serializers.CharField(source="account_user.username", read_only=True)
+
+    class Meta:
+        model = Team
+        fields = (
+            "id",
+            "race",
+            "display_name",
+            "bib_number",
+            "contact_email",
+            "is_active",
+            "username",
+            "members",
+            "statistics",
+        )
+        read_only_fields = ("id", "username", "statistics")
+
+
+class HitchwikiSpotSerializer(serializers.ModelSerializer):
+    location = LocationSerializer()
+
+    class Meta:
+        model = HitchwikiSpot
+        fields = (
+            "id",
+            "external_id",
+            "title",
+            "description",
+            "location",
+            "rating",
+            "average_waiting_time_minutes",
+            "source_url",
+        )
+
+
+class HitchwikiRecommendationSerializer(serializers.ModelSerializer):
+    spot = HitchwikiSpotSerializer(read_only=True)
+
+    class Meta:
+        model = HitchwikiRecommendation
+        fields = ("id", "spot", "distance_meters", "score", "created_at")

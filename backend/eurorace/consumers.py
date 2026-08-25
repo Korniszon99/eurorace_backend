@@ -4,6 +4,7 @@ from django.contrib.gis.geos import Point
 from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 from .models import LocationReport
+from .services import process_location_report
 
 
 class LocationConsumer(AsyncJsonWebsocketConsumer):
@@ -47,9 +48,11 @@ class LocationConsumer(AsyncJsonWebsocketConsumer):
         if content.get("type", None) == "location_update":
             latitude = content["latitude"]
             longitude = content["longitude"]
+            altitude = content.get("altitude_m")
+            accuracy = content.get("accuracy_m")
 
             # Save location to database
-            await self.save_location(latitude, longitude)
+            await self.save_location(latitude, longitude, altitude, accuracy)
 
             # Send acknowledgment to the client
             await self.send_json({
@@ -58,13 +61,16 @@ class LocationConsumer(AsyncJsonWebsocketConsumer):
             })
 
     @database_sync_to_async
-    def save_location(self, latitude, longitude):
+    def save_location(self, latitude, longitude, altitude=None, accuracy=None):
         """Save the location to the database"""
         point = Point(longitude, latitude)
-        LocationReport.objects.create(
+        report = LocationReport.objects.create(
             user=self.user,
-            location=point
+            location=point,
+            altitude_m=altitude,
+            accuracy_m=accuracy,
         )
+        process_location_report(report)
 
     @database_sync_to_async
     def get_user_from_token(self, token_key):
