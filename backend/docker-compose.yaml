@@ -10,6 +10,10 @@ services:
       - static_volume:/app/static
     env_file:
       - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
     restart: on-failure
     depends_on:
       db:
