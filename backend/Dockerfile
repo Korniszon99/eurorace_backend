@@ -32,21 +32,21 @@ COPY pyproject.toml /app/
 # Zamiast próbować zbudować GDAL przez pip, użyjemy systemowego python3-gdal
 RUN pip install --upgrade pip wheel setuptools && \
     pip wheel --wheel-dir=/app/wheels \
-    django>=5.0.0 \
-    dj-rest-auth[with-social]>=5.1.0 \
-    django-environ>=0.11.2 \
-    django-leaflet>=0.31.0 \
-    django-rest-framework>=0.1.0 \
-    drf-extra-fields>=3.7.0 \
-    drf-spectacular[sidecar]>=0.28.0 \
-    six>=1.17.0 \
-    channels>=4.0.0 \
-    channels-redis>=4.1.0 \
-    psycopg2-binary>=2.9.9 \
-    daphne>=4.0.0 \
-    djangorestframework-gis>=1.0.0 \
-    django-cors-headers>=4.3.0 \
-    Pillow>=10.1.0
+    'django>=5.0.0,<5.2' \
+    'dj-rest-auth[with-social]>=5.1.0' \
+    'django-environ>=0.11.2' \
+    'django-leaflet>=0.31.0' \
+    'django-rest-framework>=0.1.0' \
+    'drf-extra-fields>=3.7.0' \
+    'drf-spectacular[sidecar]>=0.28.0' \
+    'six>=1.17.0' \
+    'channels>=4.0.0' \
+    'channels-redis>=4.1.0' \
+    'psycopg2-binary>=2.9.9' \
+    'daphne>=4.0.0' \
+    'djangorestframework-gis>=1.0.0' \
+    'django-cors-headers>=4.3.0' \
+    'Pillow>=10.1.0'
 
 # Obraz końcowy
 FROM python:3.11-slim-bullseye
