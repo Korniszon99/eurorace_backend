@@ -1,0 +1,44 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+  <li>
+    <a href="{% url 'admin:eurorace_taskphoto_gallery' %}" class="viewsitelink">Galeria zdjęć zadań</a>
+  </li>
+  {{ block.super }}
+{% endblock %}
+
+{% block content %}
+  {% include "admin/eurorace/includes/guide_styles.html" %}
+  <div class="eurorace-guide">
+    <h2>Jak dodawać zadania dla uczestników</h2>
+    <p>
+      Zadania to wyzwania po drodze, które pary realizują w aplikacji mobilnej.
+      Po wykonaniu para robi zdjęcie — trafia ono do galerii organizatora.
+    </p>
+    <div class="eurorace-steps">
+      <div class="eurorace-step">
+        <strong>1. Dodaj zadanie</strong>
+        Kliknij <em>Dodaj zadanie</em>, podaj tytuł i opis. Uczestnik zobaczy je w zakładce Zadania.
+      </div>
+      <div class="eurorace-step">
+        <strong>2. Ustaw lokalizację na mapie</strong>
+        Kliknij punkt na mapie — zadanie pojawi się jako marker w aplikacji mobilnej.
+      </div>
+      <div class="eurorace-step">
+        <strong>3. Automatyczne przypisanie</strong>
+        Nowe zadanie jest od razu przypisywane do wszystkich istniejących kont par.
+        Nowe pary z CSV dostają wszystkie zadania przy imporcie.
+      </div>
+      <div class="eurorace-step">
+        <strong>4. Zdjęcia od uczestników</strong>
+        Para wysyła zdjęcie przez aplikację — organizator przegląda je w
+        <a href="{% url 'admin:eurorace_taskphoto_gallery' %}">Galerii zdjęć zadań</a>.
+      </div>
+    </div>
+    <div class="guide-note">
+      Zalecana kolejność: najpierw zadania, potem import par — wtedy nowe pary od razu dostaną pełną listę wyzwań.
+      Jeśli dodasz zadanie po imporcie, i tak trafi ono do wszystkich kont.
+    </div>
+  </div>
+  {{ block.super }}
+{% endblock %}

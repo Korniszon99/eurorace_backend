@@ -1,0 +1,103 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  {% include "admin/eurorace/includes/guide_styles.html" %}
+  <div id="content-main">
+    <div class="eurorace-guide">
+      <h2>Galeria zdjęć z zadań</h2>
+      <p>
+        Tutaj zobaczysz wszystkie zdjęcia przesłane przez pary jako dowód wykonania zadań.
+        Możesz filtrować wyniki, przeglądać miniatury i pobierać pojedyncze pliki lub cały zestaw jako archiwum ZIP.
+      </p>
+      <div class="guide-note">
+        Zdjęcia trafiają tu automatycznie z aplikacji mobilnej po wykonaniu zadania przez parę.
+      </div>
+    </div>
+
+    <form method="get" class="eurorace-gallery-toolbar">
+      <label>
+        Wyścig
+        <select name="race">
+          <option value="">Wszystkie</option>
+          {% for race in races %}
+            <option value="{{ race.id }}" {% if selected_race == race.id|stringformat:"s" %}selected{% endif %}>
+              {{ race.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Para
+        <select name="team">
+          <option value="">Wszystkie</option>
+          {% for team in teams %}
+            <option value="{{ team.id }}" {% if selected_team == team.id|stringformat:"s" %}selected{% endif %}>
+              {% if team.bib_number %}#{{ team.bib_number }} {% endif %}{{ team.display_name }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Zadanie
+        <select name="task">
+          <option value="">Wszystkie</option>
+          {% for task in tasks %}
+            <option value="{{ task.id }}" {% if selected_task == task.id|stringformat:"s" %}selected{% endif %}>
+              {{ task.title }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <div>
+        <input type="submit" value="Filtruj" class="default">
+        <a href="{% url 'admin:eurorace_taskphoto_gallery' %}" class="button cancel-link">Wyczyść filtry</a>
+      </div>
+    </form>
+
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="race" value="{{ selected_race }}">
+      <input type="hidden" name="team" value="{{ selected_team }}">
+      <input type="hidden" name="task" value="{{ selected_task }}">
+      <div class="submit-row" style="padding-left:0;">
+        <button type="submit" name="download" value="zip_selected" class="default">Pobierz zaznaczone (ZIP)</button>
+        <a href="{% url 'admin:eurorace_taskphoto_gallery' %}?{% if query_string %}{{ query_string }}&{% endif %}download=zip_all" class="button">Pobierz wszystkie (ZIP)</a>
+        <a href="{% url 'admin:eurorace_taskphoto_changelist' %}" class="button">Widok tabeli</a>
+        <a href="{% url 'admin:eurorace_task_changelist' %}" class="button">Lista zadań</a>
+      </div>
+
+      <p><strong>{{ photo_count }}</strong> zdjęć spełnia kryteria filtrowania.</p>
+
+      {% if photos %}
+        <div class="eurorace-gallery-grid">
+          {% for photo in photos %}
+            <article class="eurorace-gallery-card">
+              <a href="{{ photo.image.url }}" target="_blank" rel="noopener">
+                <img src="{{ photo.image.url }}" alt="{{ photo.task.title }}">
+              </a>
+              <div class="eurorace-gallery-meta">
+                <label>
+                  <input type="checkbox" name="photo_ids" value="{{ photo.id }}">
+                  Zaznacz do pobrania
+                </label>
+                <strong>{{ photo.task.title }}</strong>
+                <div>Para: {{ photo.team_label }}</div>
+                <div>Uczestnik: {{ photo.uploader_label }}</div>
+                <div>{{ photo.uploaded_at|date:"d.m.Y H:i" }}</div>
+                <div class="eurorace-gallery-actions">
+                  <a href="{{ photo.image.url }}" target="_blank" rel="noopener">Podgląd</a>
+                  <a href="{% url 'admin:eurorace_taskphoto_download' photo.id %}">Pobierz</a>
+                  <a href="{% url 'admin:eurorace_taskphoto_change' photo.id %}">Szczegóły</a>
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="eurorace-guide">
+          <p>Brak zdjęć dla wybranych filtrów. Zdjęcia pojawią się, gdy pary zaczną realizować zadania w aplikacji.</p>
+        </div>
+      {% endif %}
+    </form>
+  </div>
+{% endblock %}

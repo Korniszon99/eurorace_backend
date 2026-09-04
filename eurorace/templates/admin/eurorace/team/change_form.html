@@ -1,0 +1,18 @@
+{% extends "admin/change_form.html" %}
+
+{% block after_field_sets %}
+  {% include "admin/eurorace/includes/guide_styles.html" %}
+  <div class="eurorace-guide">
+    <h3>Ręczne dodawanie pary</h3>
+    <ol>
+      <li><strong>Wyścig</strong> — wybierz aktywną edycję Eurorace.</li>
+      <li><strong>Konto użytkownika</strong> — utwórz lub wybierz użytkownika Django. To będzie login pary w aplikacji.</li>
+      <li><strong>Nazwa i numer startowy</strong> — widoczne na live trackerze i w aplikacji.</li>
+      <li><strong>Zdjęcie profilowe</strong> — opcjonalne; para może też wgrać je sama z aplikacji mobilnej.</li>
+      <li><strong>Członkowie pary</strong> — uzupełnij dwie osoby w sekcji poniżej. Ich imiona pojawią się na live trackerze.</li>
+    </ol>
+    <div class="guide-note">
+      Szybszą metodą jest <a href="{% url 'admin:eurorace_team_import_csv' %}">import CSV kont par</a> — szczególnie przed startem wyścigu.
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "admin/change_form.html" %}
+
+{% block after_field_sets %}
+  {% include "admin/eurorace/includes/guide_styles.html" %}
+  <div class="eurorace-guide">
+    <h3>Instrukcja konfiguracji wyścigu</h3>
+    <ol>
+      <li><strong>Nazwa</strong> — widoczna dla organizatora i w danych API (np. „Eurorace PW 2026”).</li>
+      <li><strong>Daty</strong> — opcjonalne, ale pomocne przy planowaniu i archiwizacji edycji.</li>
+      <li><strong>Miejsce docelowe</strong> — kliknij na mapie punkt mety wyścigu. Para widzi go w aplikacji mobilnej jako punkt orientacyjny.</li>
+      <li><strong>Nazwa miejsca docelowego</strong> — etykieta na mapie live (np. „Santorini”, „Lizbona”).</li>
+      <li><strong>Aktywny</strong> — zaznacz dla bieżącej edycji. Meta i import CSV domyślnie używają aktywnego wyścigu.</li>
+    </ol>
+    <div class="guide-warning">
+      Jeśli zmieniasz metę w trakcie wydarzenia, uczestnicy zobaczą nową lokalizację po odświeżeniu mapy w aplikacji.
+    </div>
+  </div>
+{% endblock %}

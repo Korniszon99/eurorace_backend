@@ -2,24 +2,47 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from django.db.models import Min, Max, Count
 from django.contrib.auth.models import User
-from django.contrib.gis.geos import Point
+from django.http import JsonResponse
+from django.shortcuts import render
 
-from eurorace.models import LocationReport
+from eurorace.models import DetectedStop, HitchwikiRecommendation, LocationReport, Race, Team, TeamMember
 from eurorace.task_models import Task, TaskPhoto, UserTask
 from eurorace.serializers import (
     LocationReportSerializer, UserTrackResponseSerializer, UserTrackSerializer,
-    TaskSerializer, TaskPhotoSerializer
+    TaskSerializer, TaskPhotoSerializer, TeamSerializer, TeamStatisticsSerializer,
+    HitchwikiRecommendationSerializer
 )
+from eurorace.services import get_active_race, get_user_team, process_location_report, update_team_statistics
+
+
+def _validate_team_member(user, team_member):
+    if not team_member:
+        return None
+    team = get_user_team(user)
+    if not team or team_member.team_id != team.id:
+        raise PermissionDenied("Wybrany uczestnik nie należy do Twojej pary.")
+    return team_member
 
 
 class LocationReportViewSet(viewsets.ModelViewSet):
     queryset = LocationReport.objects.all()
     serializer_class = LocationReportSerializer
     permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        team_member = serializer.validated_data.get("team_member")
+        if team_member:
+            _validate_team_member(user, team_member)
+        if user.is_staff and serializer.validated_data.get("user"):
+            report = serializer.save()
+        else:
+            report = serializer.save(user=user)
+        process_location_report(report)
 
     @extend_schema(
         responses=LocationReportSerializer(many=True),
@@ -225,15 +248,30 @@ class TaskViewSet(viewsets.ModelViewSet):
     def completed(self, request):
         """Endpoint zwracający ukończone zadania"""
         if request.user.is_staff:
-            # Administratorzy widzą wszystkie ukończone zadania
-            tasks = Task.objects.filter(status='completed')
+            completed_ids = UserTask.objects.filter(status='completed').values_list('task_id', flat=True)
+            tasks = Task.objects.filter(id__in=completed_ids).distinct()
         else:
-            # Zwykli użytkownicy widzą tylko swoje ukończone zadania (przez UserTask)
-            # Pobieramy zadania ze statusem 'completed' przez relację all_tasks
-            tasks = request.user.all_tasks.filter(status='completed')
+            completed_ids = UserTask.objects.filter(
+                user=request.user,
+                status='completed'
+            ).values_list('task_id', flat=True)
+            tasks = Task.objects.filter(id__in=completed_ids)
 
         serializer = self.get_serializer(tasks, many=True)
         return Response(serializer.data)
+
+    @extend_schema(
+        description="Podsumowanie liczby zadań ukończonych przez bieżącego użytkownika"
+    )
+    @action(detail=False, methods=['get'])
+    def completion_summary(self, request):
+        total_tasks = request.user.all_tasks.count()
+        completed_tasks = UserTask.objects.filter(user=request.user, status='completed').count()
+        return Response({
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks,
+            'pending_tasks': max(total_tasks - completed_tasks, 0),
+        })
 
     @extend_schema(
         description="Aktualizacja statusu zadania",
@@ -322,3 +360,136 @@ class TaskViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TeamViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = TeamSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return Team.objects.select_related("race", "account_user", "statistics").prefetch_related("members")
+        return Team.objects.filter(account_user=self.request.user).select_related(
+            "race", "account_user", "statistics"
+        ).prefetch_related("members")
+
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        team = get_user_team(request.user)
+        if not team:
+            return Response({'detail': 'Brak pary przypisanej do użytkownika.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = self.get_serializer(team)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        team = get_user_team(request.user)
+        if not team:
+            return Response({'detail': 'Brak pary przypisanej do użytkownika.'}, status=status.HTTP_404_NOT_FOUND)
+        statistics = update_team_statistics(team)
+        return Response(TeamStatisticsSerializer(statistics).data)
+
+    @action(detail=False, methods=['post'])
+    def upload_profile_photo(self, request):
+        team = get_user_team(request.user)
+        if not team:
+            return Response({'detail': 'Brak pary przypisanej do użytkownika.'}, status=status.HTTP_404_NOT_FOUND)
+        if 'photo' not in request.FILES:
+            return Response({'error': 'Nie dostarczono zdjęcia.'}, status=status.HTTP_400_BAD_REQUEST)
+        team.profile_photo = request.FILES['photo']
+        team.save(update_fields=('profile_photo',))
+        serializer = self.get_serializer(team)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def recommendations(self, request):
+        team = get_user_team(request.user)
+        if not team:
+            return Response({'detail': 'Brak pary przypisanej do użytkownika.'}, status=status.HTTP_404_NOT_FOUND)
+        latest_stop = DetectedStop.objects.filter(team=team).order_by("-ended_at").first()
+        if not latest_stop:
+            return Response([])
+        recommendations = HitchwikiRecommendation.objects.filter(stop=latest_stop).select_related("spot")
+        serializer = HitchwikiRecommendationSerializer(recommendations, many=True)
+        return Response(serializer.data)
+
+
+def live_dashboard(request):
+    return render(request, "eurorace/live_dashboard.html")
+
+
+def live_dashboard_data(request):
+    teams = Team.objects.filter(is_active=True).select_related(
+        "account_user", "statistics", "race"
+    ).prefetch_related("members")
+    active_race = get_active_race()
+    latest_member_locations = {}
+    for report in LocationReport.objects.latest_for_team_members().select_related("team_member", "user"):
+        team = get_user_team(report.user)
+        if not team:
+            continue
+        team_id = team.id
+        member_key = report.team_member_id or 0
+        latest_member_locations.setdefault(team_id, {})[member_key] = report
+
+    payload = []
+    for team in teams:
+        statistics = getattr(team, "statistics", None)
+        completed_tasks = UserTask.objects.filter(user=team.account_user, status="completed").count()
+        total_tasks = team.account_user.all_tasks.count()
+        latest_stop = DetectedStop.objects.filter(team=team).order_by("-ended_at").first()
+        recommendations = []
+        if latest_stop:
+            recommendations = HitchwikiRecommendationSerializer(
+                HitchwikiRecommendation.objects.filter(stop=latest_stop).select_related("spot"),
+                many=True,
+            ).data
+
+        member_locations = []
+        team_reports = latest_member_locations.get(team.id, {})
+        for member_key, report in team_reports.items():
+            member = report.team_member
+            member_locations.append({
+                "member_id": member.id if member else None,
+                "member_name": member.full_name if member else team.display_name,
+                "latitude": report.location.y,
+                "longitude": report.location.x,
+                "timestamp": report.timestamp.isoformat(),
+                "altitude_m": report.altitude_m,
+            })
+
+        profile_photo_url = None
+        if team.profile_photo:
+            profile_photo_url = request.build_absolute_uri(team.profile_photo.url)
+
+        payload.append({
+            "team_id": team.id,
+            "display_name": team.display_name,
+            "bib_number": team.bib_number,
+            "profile_photo_url": profile_photo_url,
+            "members": [member.full_name for member in team.members.all()],
+            "member_locations": member_locations,
+            "location": member_locations[0] if len(member_locations) == 1 else None,
+            "statistics": None if not statistics else TeamStatisticsSerializer(statistics).data,
+            "tasks": {
+                "completed": completed_tasks,
+                "total": total_tasks,
+            },
+            "latest_stop": None if not latest_stop else {
+                "started_at": latest_stop.started_at.isoformat(),
+                "ended_at": latest_stop.ended_at.isoformat(),
+                "duration_seconds": latest_stop.duration_seconds,
+                "radius_meters": latest_stop.radius_meters,
+            },
+            "recommendations": recommendations,
+        })
+
+    destination = None
+    if active_race and active_race.destination:
+        destination = {
+            "name": active_race.destination_name or active_race.name,
+            "latitude": active_race.destination.y,
+            "longitude": active_race.destination.x,
+        }
+
+    return JsonResponse({"teams": payload, "destination": destination})

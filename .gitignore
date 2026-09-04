@@ -11,7 +11,3 @@ wheels/
 *.sqlite3
 .idea/
 .env
-# Environment files
-.env
-.env.*
-*.env

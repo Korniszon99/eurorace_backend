@@ -1,0 +1,35 @@
+{% extends "admin/change_list.html" %}
+
+{% block content %}
+  {% include "admin/eurorace/includes/guide_styles.html" %}
+  <div class="eurorace-guide">
+    <h2>Jak przygotować wyścig Eurorace</h2>
+    <p>
+      Wyścig to kontener na wszystkie dane wydarzenia: pary, zadania, meta na mapie i live tracker.
+      Zanim zaimportujesz drużyny lub dodasz zadania, utwórz i skonfiguruj wyścig.
+    </p>
+    <div class="eurorace-steps">
+      <div class="eurorace-step">
+        <strong>1. Utwórz wyścig</strong>
+        Kliknij <em>Dodaj wyścig</em>, podaj nazwę (np. „Eurorace 2026”) oraz daty startu i końca.
+      </div>
+      <div class="eurorace-step">
+        <strong>2. Ustaw metę na mapie</strong>
+        W polu <em>Miejsce docelowe</em> kliknij punkt na mapie. Uczestnicy i live viewer zobaczą czerwony marker META.
+      </div>
+      <div class="eurorace-step">
+        <strong>3. Oznacz wyścig jako aktywny</strong>
+        Tylko jeden wyścig powinien mieć zaznaczone <em>Aktywny</em>. Od tego zależy meta na mapie i domyślny wybór przy imporcie CSV.
+      </div>
+      <div class="eurorace-step">
+        <strong>4. Przejdź dalej</strong>
+        Po utworzeniu wyścigu przejdź do <a href="{% url 'admin:eurorace_team_changelist' %}">Par</a>
+        (import CSV) oraz <a href="{% url 'admin:eurorace_task_changelist' %}">Zadań</a>.
+      </div>
+    </div>
+    <div class="guide-note">
+      Kolejność organizatora: <strong>Wyścig → Pary (CSV) → Zadania → Start wydarzenia</strong>.
+    </div>
+  </div>
+  {{ block.super }}
+{% endblock %}

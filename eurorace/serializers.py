@@ -1,9 +1,11 @@
 from drf_extra_fields.geo_fields import PointField
 from rest_framework import serializers
 from dj_rest_auth.registration.serializers import RegisterSerializer
+from django.contrib.auth.models import User
 from django.contrib.gis.geos import Point
 
 from eurorace.models import LocationReport
+from eurorace.models import HitchwikiRecommendation, HitchwikiSpot, Race, Team, TeamMember, TeamStatistics
 from eurorace.task_models import Task, TaskPhoto, UserTask
 
 
@@ -48,10 +50,20 @@ class LocationSerializer(serializers.Serializer):
 
 class LocationReportSerializer(serializers.ModelSerializer):
     location = LocationSerializer()
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
+    team_member = serializers.PrimaryKeyRelatedField(
+        queryset=TeamMember.objects.all(),
+        required=False,
+        allow_null=True,
+    )
 
     class Meta:
-        fields = ("location", "timestamp", "user")
+        fields = ("location", "timestamp", "user", "team_member", "altitude_m", "accuracy_m")
         model = LocationReport
+        read_only_fields = ("timestamp",)
+
+    def create(self, validated_data):
+        return LocationReport.objects.create(**validated_data)
 
 
 class TaskPhotoSerializer(serializers.ModelSerializer):
@@ -60,8 +72,12 @@ class TaskPhotoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TaskPhoto
-        fields = ("id", "url", "uploaded_at", "location")
-        read_only_fields = ("id",)
+        fields = ("id", "task", "image", "url", "uploaded_at", "location")
+        read_only_fields = ("id", "url", "uploaded_at")
+        extra_kwargs = {
+            "image": {"write_only": True},
+            "task": {"write_only": True},
+        }
 
     def get_url(self, obj):
         if obj.image:
@@ -120,10 +136,11 @@ class UserTrackSerializer(serializers.ModelSerializer):
     """Serializer dla danych trasy użytkownika zgodny z dokumentacją API"""
     latitude = serializers.SerializerMethodField()
     longitude = serializers.SerializerMethodField()
+    team_member_id = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = LocationReport
-        fields = ("latitude", "longitude", "timestamp")
+        fields = ("latitude", "longitude", "timestamp", "altitude_m", "accuracy_m", "team_member_id")
 
     def get_latitude(self, obj):
         """Pobiera szerokość geograficzną (latitude) z punktu lokalizacji"""
@@ -146,3 +163,90 @@ class UserTrackResponseSerializer(serializers.Serializer):
     start_time = serializers.DateTimeField(allow_null=True)
     end_time = serializers.DateTimeField(allow_null=True)
     coordinates = UserTrackSerializer(many=True)
+
+
+class RaceSerializer(serializers.ModelSerializer):
+    destination = LocationSerializer(required=False, allow_null=True)
+
+    class Meta:
+        model = Race
+        fields = ("id", "name", "starts_at", "ends_at", "destination", "destination_name", "is_active")
+        read_only_fields = fields
+
+
+class TeamMemberSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TeamMember
+        fields = ("id", "full_name", "email", "phone")
+
+
+class TeamStatisticsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TeamStatistics
+        fields = (
+            "started_at",
+            "finished_at",
+            "duration_seconds",
+            "distance_meters",
+            "elevation_gain_meters",
+            "hitch_count",
+            "completed_tasks_count",
+            "last_calculated_at",
+        )
+
+
+class TeamSerializer(serializers.ModelSerializer):
+    members = TeamMemberSerializer(many=True, read_only=True)
+    statistics = TeamStatisticsSerializer(read_only=True)
+    race = RaceSerializer(read_only=True)
+    username = serializers.CharField(source="account_user.username", read_only=True)
+    profile_photo_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Team
+        fields = (
+            "id",
+            "race",
+            "display_name",
+            "bib_number",
+            "contact_email",
+            "profile_photo_url",
+            "is_active",
+            "username",
+            "members",
+            "statistics",
+        )
+        read_only_fields = ("id", "username", "statistics", "profile_photo_url")
+
+    def get_profile_photo_url(self, obj):
+        if not obj.profile_photo:
+            return None
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(obj.profile_photo.url)
+        return obj.profile_photo.url
+
+
+class HitchwikiSpotSerializer(serializers.ModelSerializer):
+    location = LocationSerializer()
+
+    class Meta:
+        model = HitchwikiSpot
+        fields = (
+            "id",
+            "external_id",
+            "title",
+            "description",
+            "location",
+            "rating",
+            "average_waiting_time_minutes",
+            "source_url",
+        )
+
+
+class HitchwikiRecommendationSerializer(serializers.ModelSerializer):
+    spot = HitchwikiSpotSerializer(read_only=True)
+
+    class Meta:
+        model = HitchwikiRecommendation
+        fields = ("id", "spot", "distance_meters", "score", "created_at")

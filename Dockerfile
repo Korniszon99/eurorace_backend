@@ -1,5 +1,5 @@
-# Używamy obrazu python:3.11-slim-bullseye jako podstawy
-FROM python:3.11-slim-bullseye AS builder
+# Używamy obrazu python:3.11-slim-bookworm jako podstawy
+FROM python:3.11-slim-bookworm AS builder
 
 # Ustaw zmienne środowiskowe dla lepszej wydajności
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -32,24 +32,24 @@ COPY pyproject.toml /app/
 # Zamiast próbować zbudować GDAL przez pip, użyjemy systemowego python3-gdal
 RUN pip install --upgrade pip wheel setuptools && \
     pip wheel --wheel-dir=/app/wheels \
-    django>=5.0.0 \
-    dj-rest-auth[with-social]>=5.1.0 \
-    django-environ>=0.11.2 \
-    django-leaflet>=0.31.0 \
-    django-rest-framework>=0.1.0 \
-    drf-extra-fields>=3.7.0 \
-    drf-spectacular[sidecar]>=0.28.0 \
-    six>=1.17.0 \
-    channels>=4.0.0 \
-    channels-redis>=4.1.0 \
-    psycopg2-binary>=2.9.9 \
-    daphne>=4.0.0 \
-    djangorestframework-gis>=1.0.0 \
-    django-cors-headers>=4.3.0 \
-    Pillow>=10.1.0
+    'django>=5.0.0,<5.2' \
+    'dj-rest-auth[with-social]>=5.1.0' \
+    'django-environ>=0.11.2' \
+    'django-leaflet>=0.31.0' \
+    'django-rest-framework>=0.1.0' \
+    'drf-extra-fields>=3.7.0' \
+    'drf-spectacular[sidecar]>=0.28.0' \
+    'six>=1.17.0' \
+    'channels>=4.0.0' \
+    'channels-redis>=4.1.0' \
+    'psycopg2-binary>=2.9.9' \
+    'daphne>=4.0.0' \
+    'djangorestframework-gis>=1.0.0' \
+    'django-cors-headers>=4.3.0' \
+    'Pillow>=10.1.0'
 
 # Obraz końcowy
-FROM python:3.11-slim-bullseye
+FROM python:3.11-slim-bookworm
 
 # Ustaw zmienne środowiskowe
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -100,15 +100,15 @@ COPY eurorace/ /app/eurorace/
 # Zainstaluj projekt jako pakiet
 RUN pip install -e .
 
-# Utwórz katalog na pliki statyczne
-RUN mkdir -p /app/static
+# Utwórz katalog na pliki statyczne i media
+RUN mkdir -p /app/static /app/media
 
 # Otwórz port
 EXPOSE 8000
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8000/ || exit 1
+# Healthcheck - API root (works without nginx SCRIPT_NAME prefix)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/api/ || exit 1
 
 # Uruchom serwer
 CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "eurorace.asgi:application"]

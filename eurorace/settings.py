@@ -34,7 +34,26 @@ SECRET_KEY = "django-insecure-gcapc1tbt#tir^sqbun!&5+bekf@q%mt^=vn1$bl^e=bny3%0l
 
 DEBUG = env.bool("DEBUG", default=True)
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["*"])
+
+# Behind nginx reverse proxy under /euroapp (same pattern as pwhub /pwhub)
+_force_script_name = env.str("FORCE_SCRIPT_NAME", default="").rstrip("/")
+if _force_script_name:
+    FORCE_SCRIPT_NAME = _force_script_name
+    SESSION_COOKIE_PATH = _force_script_name
+    CSRF_COOKIE_PATH = _force_script_name
+    # Absolute STATIC/MEDIA URLs do not pick up FORCE_SCRIPT_NAME automatically.
+    STATIC_URL = f"{_force_script_name}/static/"
+    MEDIA_URL = f"{_force_script_name}/media/"
+else:
+    STATIC_URL = "/static/"
+    MEDIA_URL = "/media/"
+
+USE_X_FORWARDED_HOST = env.bool("USE_X_FORWARDED_HOST", default=bool(_force_script_name))
+if USE_X_FORWARDED_HOST:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 
 
 # Application definition
@@ -70,6 +89,8 @@ MIDDLEWARE = [
     "allauth.account.middleware.AccountMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    # Must wrap CommonMiddleware: APPEND_SLASH returns before inner middleware runs.
+    "eurorace.middleware.ForceScriptNameRedirectMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -157,13 +178,9 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
-
-STATIC_URL = "static/"
+# STATIC_URL / MEDIA_URL are set above (with FORCE_SCRIPT_NAME when deployed under /euroapp).
 STATIC_ROOT = BASE_DIR / "static"
-
-# Konfiguracja mediów (przesyłane pliki, np. zdjęcia)
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR.parent / 'media'  # Folder mediów na poziomie wyżej niż aplikacja
+MEDIA_ROOT = BASE_DIR / "media"
 
 
 # Default primary key field type
@@ -218,3 +235,6 @@ EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
 
 # Konfiguracja CORS
 CORS_ALLOW_ALL_ORIGINS = True
+
+# Optional provider endpoint returning Hitchwiki-compatible nearby spots as JSON.
+HITCHWIKI_SPOTS_URL = env.str("HITCHWIKI_SPOTS_URL", default="")

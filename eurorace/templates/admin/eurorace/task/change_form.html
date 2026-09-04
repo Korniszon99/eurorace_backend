@@ -1,0 +1,23 @@
+{% extends "admin/change_form.html" %}
+
+{% block after_field_sets %}
+  {% include "admin/eurorace/includes/guide_styles.html" %}
+  <div class="eurorace-guide">
+    <h3>Instrukcja tworzenia zadania</h3>
+    <ol>
+      <li><strong>Tytuł</strong> — krótka nazwa widoczna na liście (np. „Zdjęcie z mostem”).</li>
+      <li><strong>Opis</strong> — dokładna instrukcja dla pary: co zrobić i co uwiecznić na zdjęciu.</li>
+      <li><strong>Lokalizacja</strong> — opcjonalnie kliknij punkt na mapie, jeśli zadanie wiąże się z konkretnym miejscem.</li>
+      <li><strong>Status</strong> — domyślnie „Oczekujące”. Status per para zmienia się w aplikacji po wykonaniu zadania.</li>
+    </ol>
+    <p>
+      Po zapisaniu zadanie zostanie automatycznie przypisane do wszystkich kont par.
+      Uczestnicy otrzymają powiadomienie WebSocket w aplikacji mobilnej.
+    </p>
+    <div class="guide-note">
+      Zdjęcia wykonane przez pary pojawią się w
+      <a href="{% url 'admin:eurorace_taskphoto_gallery' %}">galerii zdjęć zadań</a>,
+      gdzie można je przeglądać i pobierać.
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  {% include "admin/eurorace/includes/guide_styles.html" %}
+  <div id="content-main">
+    <div class="eurorace-guide">
+      <h2>Import kont par z pliku CSV</h2>
+      <p>
+        Ten import tworzy lub aktualizuje konta par: użytkownika Django, token API, rekord pary,
+        dwóch członków oraz przypisuje wszystkie istniejące zadania do nowych kont.
+      </p>
+
+      <h3>Krok po kroku</h3>
+      <ol>
+        <li>Upewnij się, że <a href="{% url 'admin:eurorace_race_changelist' %}">wyścig</a> jest już utworzony i oznaczony jako aktywny.</li>
+        <li>Przygotuj plik CSV w kodowaniu UTF-8 (Excel: „CSV UTF-8”).</li>
+        <li>Wybierz wyścig i wgraj plik poniżej.</li>
+        <li>Po imporcie zapisz wygenerowane hasła — nie będą ponownie wyświetlone.</li>
+        <li>Przekaż parom login i hasło przed startem wydarzenia.</li>
+      </ol>
+
+      <h3>Obsługiwane kolumny</h3>
+      <table class="eurorace-csv-table">
+        <thead>
+          <tr>
+            <th>Kolumna</th>
+            <th>Wymagana</th>
+            <th>Opis</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>username</code> / <code>login</code></td>
+            <td>Tak</td>
+            <td>Login pary do aplikacji mobilnej. Unikalny w całym systemie.</td>
+          </tr>
+          <tr>
+            <td><code>password</code></td>
+            <td>Nie</td>
+            <td>Hasło pary. Jeśli puste, system wygeneruje losowe 12-znakowe hasło.</td>
+          </tr>
+          <tr>
+            <td><code>team_name</code> / <code>display_name</code></td>
+            <td>Nie</td>
+            <td>Nazwa wyświetlana pary na live trackerze i w aplikacji.</td>
+          </tr>
+          <tr>
+            <td><code>bib_number</code> / <code>number</code></td>
+            <td>Nie</td>
+            <td>Numer startowy pary (np. <code>42</code>). Unikalny w ramach wyścigu.</td>
+          </tr>
+          <tr>
+            <td><code>contact_email</code> / <code>email</code></td>
+            <td>Nie</td>
+            <td>Kontakt do pary — trafia też do konta użytkownika Django.</td>
+          </tr>
+          <tr>
+            <td><code>member_1_name</code> / <code>member1</code></td>
+            <td>Zalecana</td>
+            <td>Imię i nazwisko pierwszego uczestnika pary.</td>
+          </tr>
+          <tr>
+            <td><code>member_2_name</code> / <code>member2</code></td>
+            <td>Zalecana</td>
+            <td>Imię i nazwisko drugiego uczestnika pary.</td>
+          </tr>
+          <tr>
+            <td><code>member_1_email</code>, <code>member_2_email</code></td>
+            <td>Nie</td>
+            <td>Opcjonalne adresy e-mail członków.</td>
+          </tr>
+          <tr>
+            <td><code>member_1_phone</code>, <code>member_2_phone</code></td>
+            <td>Nie</td>
+            <td>Opcjonalne numery telefonów członków.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Przykładowy plik CSV</h3>
+      <pre style="background:#fff;border:1px solid #ddd;padding:.75rem;border-radius:8px;overflow:auto;">username,password,team_name,bib_number,contact_email,member_1_name,member_2_name,member_1_email,member_2_email
+para_01,tajne_haslo_01,Team Alpha,1,alpha@example.com,Jan Kowalski,Anna Nowak,jan@example.com,anna@example.com
+para_02,,Team Beta,2,beta@example.com,Piotr Wiśniewski,Maria Zielińska,,</pre>
+
+      <div class="guide-warning">
+        Import nadpisuje hasło istniejącego użytkownika o tym samym <code>username</code>.
+        Wygenerowane hasła pokazują się tylko raz — zapisz je od razu po imporcie.
+      </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="form-row">
+        <label for="race">Wyścig</label>
+        <select name="race" id="race">
+          {% for race in races %}
+            <option value="{{ race.id }}" {% if race.is_active %}selected{% endif %}>{{ race.name }}{% if race.is_active %} (aktywny){% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="csv_file">Plik CSV</label>
+        <input type="file" id="csv_file" name="csv_file" accept=".csv,text/csv" required>
+      </div>
+      <div class="submit-row">
+        <input type="submit" value="Importuj pary" class="default">
+        <a href="{% url 'admin:eurorace_team_changelist' %}" class="button cancel-link">Wróć do listy par</a>
+      </div>
+    </form>
+
+    {% if generated_credentials %}
+      <div class="eurorace-guide" style="margin-top:1.5rem;">
+        <h2>Wygenerowane hasła</h2>
+        <p>Zapisz je teraz — po opuszczeniu strony nie będą już widoczne.</p>
+        <table class="eurorace-csv-table">
+          <thead>
+            <tr>
+              <th>Login</th>
+              <th>Hasło</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for credential in generated_credentials %}
+              <tr>
+                <td>{{ credential.username }}</td>
+                <td><code>{{ credential.password }}</code></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
