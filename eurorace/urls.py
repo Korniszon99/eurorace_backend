@@ -28,6 +28,7 @@ from django.conf.urls.static import static
 from django.views.static import serve as static_serve
 
 from eurorace.views import LocationReportViewSet, TaskViewSet, TeamViewSet, live_dashboard, live_dashboard_data
+from eurorace.hitchwiki_views import hitchwiki_recommendations
 
 api_router = DefaultRouter()
 
@@ -62,6 +63,7 @@ urlpatterns = [
     # Optional UI:
     path("api/schema/swagger-ui/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("api/schema/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
+    path("api/hitchwiki/recommendations/", hitchwiki_recommendations, name="hitchwiki-recommendations"),
     path("api/", include(api_router.urls))
 ]
 

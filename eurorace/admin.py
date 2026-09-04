@@ -19,6 +19,7 @@ from eurorace.models import (
     DetectedStop,
     HitchwikiRecommendation,
     HitchwikiSpot,
+    HitchwikiSpotAI,
     LocationReport,
     Race,
     Team,
@@ -425,7 +426,16 @@ class DetectedStopAdmin(LeafletGeoAdmin):
 
 @admin.register(HitchwikiSpot)
 class HitchwikiSpotAdmin(LeafletGeoAdmin):
-    list_display = ("title", "rating", "average_waiting_time_minutes", "source_url")
+    list_display = (
+        "title",
+        "rating",
+        "rating_count",
+        "average_waiting_time_minutes",
+        "is_active",
+        "imported_at",
+        "source_url",
+    )
+    list_filter = ("is_active",)
     search_fields = ("title", "description", "external_id")
 
 
@@ -433,3 +443,19 @@ class HitchwikiSpotAdmin(LeafletGeoAdmin):
 class HitchwikiRecommendationAdmin(admin.ModelAdmin):
     list_display = ("stop", "spot", "distance_meters", "score", "created_at")
     list_filter = ("spot",)
+
+
+@admin.register(HitchwikiSpotAI)
+class HitchwikiSpotAIAdmin(admin.ModelAdmin):
+    list_display = (
+        "spot",
+        "predicted_wait_minutes",
+        "uncertainty",
+        "prediction_source",
+        "model_version",
+        "prediction_generated_at",
+        "updated_at",
+    )
+    list_filter = ("prediction_source",)
+    search_fields = ("spot__title", "spot__external_id", "model_version")
+    raw_id_fields = ("spot",)

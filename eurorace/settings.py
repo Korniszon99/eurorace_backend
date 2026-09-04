@@ -236,8 +236,59 @@ EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
 # Konfiguracja CORS
 CORS_ALLOW_ALL_ORIGINS = True
 
-# Optional provider endpoint returning Hitchwiki-compatible nearby spots as JSON.
-HITCHWIKI_SPOTS_URL = env.str("HITCHWIKI_SPOTS_URL", default="")
+# Local Hitchmap / recommendation pipeline
+HITCHWIKI_RECOMMENDATIONS_ENABLED = env.bool("HITCHWIKI_RECOMMENDATIONS_ENABLED", default=True)
+HITCHWIKI_SPOTS_DUMP_URL = env.str(
+    "HITCHWIKI_SPOTS_DUMP_URL",
+    default="https://hitchmap.com/dump.sqlite",
+)
+HITCHWIKI_RANK_WEIGHTS = {
+    "distance": 0.30,
+    "rating": 0.25,
+    "predicted_wait": 0.30,
+    "confidence": 0.15,
+}
+
+# Offline AI enrichment (never loaded by Daphne request path)
+# auto | model | heatmap
+HITCHWIKI_AI_MODE = env.str("HITCHWIKI_AI_MODE", default="auto")
+HITCHWIKI_AI_MODEL_URL = env.str(
+    "HITCHWIKI_AI_MODEL_URL",
+    default=(
+        "https://huggingface.co/Hitchwiki/heatchmap-models/resolve/main/"
+        "GaussianProcess_TransformedTargetRegressorWithUncertainty.pkl"
+    ),
+)
+HITCHWIKI_AI_MODEL_REPO = env.str(
+    "HITCHWIKI_AI_MODEL_REPO",
+    default="Hitchwiki/heatchmap-models",
+)
+HITCHWIKI_AI_MODEL_FILENAME = env.str(
+    "HITCHWIKI_AI_MODEL_FILENAME",
+    default="GaussianProcess_TransformedTargetRegressorWithUncertainty.pkl",
+)
+HITCHWIKI_AI_MODEL_REVISION = env.str("HITCHWIKI_AI_MODEL_REVISION", default="main")
+HITCHWIKI_AI_HEATMAP_URL = env.str(
+    "HITCHWIKI_AI_HEATMAP_URL",
+    default=(
+        "https://huggingface.co/datasets/Hitchwiki/hitchhiking-heatmap/resolve/main/"
+        "data/2025.07.01-00000-of-00001.parquet"
+    ),
+)
+HITCHWIKI_AI_HEATMAP_VERSION = env.str("HITCHWIKI_AI_HEATMAP_VERSION", default="2025.07.01")
+HITCHWIKI_AI_BATCH_SIZE = env.int("HITCHWIKI_AI_BATCH_SIZE", default=1000)
+HITCHWIKI_AI_LOCK_KEY = env.int("HITCHWIKI_AI_LOCK_KEY", default=742891)
+# Uncertainty thresholds derived from ETAP 2 feasibility distributions.
+HITCHWIKI_AI_CONFIDENCE_THRESHOLDS = {
+    "model": {"high": 0.97, "medium": 1.02},
+    "heatmap": {"high": 1.15, "medium": 2.10},
+    "default": {"high": 1.0, "medium": 1.5},
+}
+# Pinned stub sources required only to unpickle the official GP wrapper (offline sync).
+HITCHWIKI_AI_STUB_COMMIT = env.str(
+    "HITCHWIKI_AI_STUB_COMMIT",
+    default="master",
+)
 
 # Admin geo widgets: Leaflet shell + MapLibre GL basemap (Polish labels via OpenFreeMap).
 LEAFLET_CONFIG = {

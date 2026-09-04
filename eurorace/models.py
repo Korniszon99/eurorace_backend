@@ -172,11 +172,15 @@ class HitchwikiSpot(models.Model):
     external_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    location = gis_models.PointField()
+    location = gis_models.PointField(spatial_index=True)
     rating = models.FloatField(null=True, blank=True)
+    rating_count = models.PositiveIntegerField(null=True, blank=True)
     average_waiting_time_minutes = models.FloatField(null=True, blank=True)
     source_url = models.URLField(blank=True)
     metadata = models.JSONField(default=dict, blank=True)
+    source_updated_at = models.DateTimeField(null=True, blank=True)
+    imported_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -185,6 +189,51 @@ class HitchwikiSpot(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class HitchwikiSpotAI(models.Model):
+    SOURCE_MODEL = "model"
+    SOURCE_HEATMAP = "heatmap"
+    SOURCE_CHOICES = (
+        (SOURCE_MODEL, "Pretrained model"),
+        (SOURCE_HEATMAP, "Precomputed heatmap"),
+    )
+
+    spot = models.OneToOneField(
+        HitchwikiSpot,
+        on_delete=models.CASCADE,
+        related_name="ai",
+    )
+    predicted_wait_minutes = models.FloatField()
+    uncertainty = models.FloatField(null=True, blank=True)
+    prediction_source = models.CharField(max_length=16, choices=SOURCE_CHOICES)
+    model_version = models.CharField(max_length=255, blank=True)
+    prediction_generated_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Hitchwiki spot AI"
+        verbose_name_plural = "Hitchwiki spot AI"
+
+    def __str__(self):
+        return f"AI for {self.spot_id} ({self.prediction_source})"
+
+    @property
+    def confidence(self) -> str:
+        from django.conf import settings
+
+        thresholds = getattr(settings, "HITCHWIKI_AI_CONFIDENCE_THRESHOLDS", {})
+        source_thresholds = thresholds.get(self.prediction_source) or thresholds.get("default") or {}
+        high = float(source_thresholds.get("high", 1.0))
+        medium = float(source_thresholds.get("medium", 1.5))
+        uncertainty = self.uncertainty
+        if uncertainty is None:
+            return "unknown"
+        if uncertainty <= high:
+            return "high"
+        if uncertainty <= medium:
+            return "medium"
+        return "low"
 
 
 class HitchwikiRecommendation(models.Model):

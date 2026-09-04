@@ -1,18 +1,14 @@
-import json
 import math
 from datetime import timedelta
-from urllib.parse import urlencode
-from urllib.request import urlopen
 
-from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.gis.geos import Point
 from django.utils import timezone
 
+from eurorace.hitchwiki_recommendations import get_ranked_hitchwiki_spots
 from eurorace.models import (
     DetectedStop,
     HitchwikiRecommendation,
-    HitchwikiSpot,
     LocationReport,
     Race,
     Team,
@@ -31,7 +27,6 @@ STOP_LOOKBACK = timedelta(hours=12)
 STOP_MAX_STALENESS = timedelta(hours=2)
 # Don't regenerate Hitchwiki tips on every ping once we have fresh ones.
 RECOMMENDATION_REFRESH = timedelta(minutes=10)
-RECOMMENDATION_RADIUS_METERS = 25_000
 DEFAULT_RECOMMENDATION_LIMIT = 5
 STOP_MIN_REPORTS = 2
 
@@ -212,110 +207,35 @@ def detect_stationary_stop(team, now=None):
     return stop
 
 
-def _normalize_hitchwiki_items(payload):
-    if isinstance(payload, dict):
-        for key in ("spots", "features", "results", "data"):
-            if key in payload and isinstance(payload[key], list):
-                return payload[key]
-        return []
-    if isinstance(payload, list):
-        return payload
-    return []
-
-
-def _extract_coordinate(item, *names):
-    for name in names:
-        value = item.get(name)
-        if value is not None:
-            return value
-    geometry = item.get("geometry") or {}
-    coordinates = geometry.get("coordinates") or []
-    if len(coordinates) >= 2:
-        if "lon" in names or "lng" in names or "longitude" in names:
-            return coordinates[0]
-        return coordinates[1]
-    return None
-
-
-def _upsert_hitchwiki_spot(item):
-    properties = item.get("properties") or item
-    lat = _extract_coordinate(item, "lat", "latitude", "y")
-    lon = _extract_coordinate(item, "lon", "lng", "longitude", "x")
-    if lat is None or lon is None:
-        lat = _extract_coordinate(properties, "lat", "latitude", "y")
-        lon = _extract_coordinate(properties, "lon", "lng", "longitude", "x")
-    if lat is None or lon is None:
-        return None
-
-    external_id = str(properties.get("id") or properties.get("external_id") or item.get("id") or "")
-    defaults = {
-        "title": properties.get("title") or properties.get("name") or "Hitchwiki spot",
-        "description": properties.get("description") or properties.get("comment") or "",
-        "location": Point(float(lon), float(lat), srid=4326),
-        "rating": properties.get("rating"),
-        "average_waiting_time_minutes": properties.get("average_wait") or properties.get("waiting_time"),
-        "source_url": properties.get("url") or properties.get("source_url") or "",
-        "metadata": properties,
-    }
-    if external_id:
-        spot, _ = HitchwikiSpot.objects.update_or_create(external_id=external_id, defaults=defaults)
-        return spot
-    return HitchwikiSpot.objects.create(**defaults)
-
-
-def fetch_hitchwiki_spots(latitude, longitude, radius_km=25):
-    base_url = getattr(settings, "HITCHWIKI_SPOTS_URL", "")
-    if not base_url:
-        return []
-
-    query = urlencode({"lat": latitude, "lon": longitude, "radius_km": radius_km})
-    separator = "&" if "?" in base_url else "?"
-    with urlopen(f"{base_url}{separator}{query}", timeout=5) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-
-    spots = []
-    for item in _normalize_hitchwiki_items(payload):
-        spot = _upsert_hitchwiki_spot(item)
-        if spot:
-            spots.append(spot)
-    return spots
-
-
-def _spot_score(spot, distance_meters):
-    rating = spot.rating if spot.rating is not None else 0
-    wait_penalty = spot.average_waiting_time_minutes or 0
-    return (rating * 20) - (distance_meters / 1000) - (wait_penalty * 0.2)
-
-
 def recommend_hitchwiki_spots(stop, limit=DEFAULT_RECOMMENDATION_LIMIT):
-    latitude = stop.location.y
-    longitude = stop.location.x
+    """
+    Persist ranked local Hitchwiki spots for a DetectedStop.
 
-    try:
-        fetch_hitchwiki_spots(latitude, longitude, radius_km=RECOMMENDATION_RADIUS_METERS / 1000)
-    except Exception:
-        # Hitchwiki currently has no stable public nearby API. Cached spots still make recommendations usable.
-        pass
-
-    candidates = []
-    for spot in HitchwikiSpot.objects.all():
-        distance_meters = haversine_distance_meters(stop.location, spot.location)
-        if distance_meters <= RECOMMENDATION_RADIUS_METERS:
-            candidates.append((spot, distance_meters, _spot_score(spot, distance_meters)))
-
-    candidates.sort(key=lambda item: (-item[2], item[1]))
+    Uses PostGIS + HitchwikiSpot(+AI) only — no external HitchWiki HTTP API.
+    """
+    result = get_ranked_hitchwiki_spots(stop.location, radius_km=5, limit=limit)
     recommendations = []
-    for spot, distance_meters, score in candidates[:limit]:
+    keep_spot_ids = []
+    for ranked in result.recommendations:
+        keep_spot_ids.append(ranked.spot.id)
         recommendation, _ = HitchwikiRecommendation.objects.update_or_create(
             stop=stop,
-            spot=spot,
-            defaults={"distance_meters": distance_meters, "score": score},
+            spot=ranked.spot,
+            defaults={
+                "distance_meters": ranked.distance_m,
+                "score": ranked.score,
+            },
         )
         recommendations.append(recommendation)
 
-    if recommendations:
+    if keep_spot_ids:
+        HitchwikiRecommendation.objects.filter(stop=stop).exclude(spot_id__in=keep_spot_ids).delete()
         stop.recommendation_generated_at = timezone.now()
         stop.save(update_fields=("recommendation_generated_at",))
+    elif not result.recommendations:
+        # Clear stale recommendations when nothing is nearby.
+        HitchwikiRecommendation.objects.filter(stop=stop).delete()
+
     return recommendations
 
 
