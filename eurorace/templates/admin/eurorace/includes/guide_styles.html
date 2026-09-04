@@ -1,16 +1,31 @@
 <style>
+  /* Force readable light-panel text even when Django admin is in dark theme. */
   .eurorace-guide {
     margin: 0 0 1.5rem;
     padding: 1rem 1.25rem;
-    border-left: 4px solid var(--primary, #417690);
-    background: var(--darkened-bg, #f8f8f8);
+    border-left: 4px solid #417690;
+    background: #f5f7f9;
     border-radius: 0 6px 6px 0;
     line-height: 1.55;
+    color: #1a1a1a;
   }
   .eurorace-guide h2,
   .eurorace-guide h3 {
     margin: 0 0 .75rem;
     font-size: 1.05rem;
+    color: #0d0d0d;
+  }
+  .eurorace-guide p,
+  .eurorace-guide li,
+  .eurorace-guide em {
+    color: #1a1a1a;
+  }
+  .eurorace-guide a {
+    color: #2563a8;
+    text-decoration: underline;
+  }
+  .eurorace-guide a:hover {
+    color: #1a4f85;
   }
   .eurorace-guide p:last-child,
   .eurorace-guide ol:last-child,
@@ -27,6 +42,7 @@
   }
   .eurorace-guide code {
     background: rgba(0, 0, 0, .06);
+    color: #1a1a1a;
     padding: .1rem .35rem;
     border-radius: 4px;
     font-size: .92em;
@@ -34,15 +50,17 @@
   .eurorace-guide .guide-note {
     margin-top: .75rem;
     padding: .65rem .85rem;
-    background: rgba(65, 118, 144, .08);
+    background: rgba(65, 118, 144, .12);
     border-radius: 6px;
+    color: #1a1a1a;
   }
   .eurorace-guide .guide-warning {
     margin-top: .75rem;
     padding: .65rem .85rem;
-    background: rgba(190, 74, 20, .08);
+    background: rgba(190, 74, 20, .1);
     border-left: 3px solid #ba2121;
     border-radius: 0 6px 6px 0;
+    color: #1a1a1a;
   }
   .eurorace-steps {
     display: grid;
@@ -52,18 +70,21 @@
   .eurorace-step {
     padding: .85rem 1rem;
     background: #fff;
-    border: 1px solid #ddd;
+    border: 1px solid #cfd6dd;
     border-radius: 8px;
+    color: #1a1a1a;
   }
   .eurorace-step strong {
     display: block;
     margin-bottom: .25rem;
+    color: #0d0d0d;
   }
   .eurorace-csv-table {
     width: 100%;
     border-collapse: collapse;
     margin: .75rem 0;
     font-size: .92rem;
+    color: #1a1a1a;
   }
   .eurorace-csv-table th,
   .eurorace-csv-table td {
@@ -71,9 +92,11 @@
     padding: .45rem .6rem;
     text-align: left;
     vertical-align: top;
+    color: #1a1a1a;
   }
   .eurorace-csv-table th {
-    background: #f0f0f0;
+    background: #e8eef2;
+    color: #0d0d0d;
   }
   .eurorace-gallery-grid {
     display: grid;
@@ -82,10 +105,11 @@
     margin-top: 1rem;
   }
   .eurorace-gallery-card {
-    border: 1px solid #ddd;
+    border: 1px solid #cfd6dd;
     border-radius: 10px;
     overflow: hidden;
     background: #fff;
+    color: #1a1a1a;
   }
   .eurorace-gallery-card img {
     width: 100%;
@@ -97,10 +121,12 @@
   .eurorace-gallery-meta {
     padding: .75rem;
     font-size: .9rem;
+    color: #1a1a1a;
   }
   .eurorace-gallery-meta strong {
     display: block;
     margin-bottom: .25rem;
+    color: #0d0d0d;
   }
   .eurorace-gallery-actions {
     display: flex;
@@ -115,8 +141,9 @@
     align-items: end;
     margin: 1rem 0;
     padding: 1rem;
-    background: var(--darkened-bg, #f8f8f8);
+    background: #f5f7f9;
     border-radius: 8px;
+    color: #1a1a1a;
   }
   .eurorace-gallery-toolbar label {
     display: flex;
@@ -124,5 +151,6 @@
     gap: .25rem;
     font-weight: 600;
     font-size: .9rem;
+    color: #1a1a1a;
   }
 </style>
