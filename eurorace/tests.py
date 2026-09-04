@@ -37,7 +37,7 @@ from rest_framework.authtoken.models import Token
 
 from eurorace.asgi import application
 from eurorace.models import DetectedStop, HitchwikiSpot, LocationReport, Race, Team
-from eurorace.services import recommend_hitchwiki_spots, update_team_statistics
+from eurorace.services import detect_stationary_stop, recommend_hitchwiki_spots, update_team_statistics
 
 
 class LocationConsumerTests(TransactionTestCase):
@@ -208,6 +208,41 @@ class TeamStatisticsTests(TransactionTestCase):
 
         self.assertEqual(len(recommendations), 1)
         self.assertEqual(recommendations[0].spot.title, "Good petrol station")
+
+    def test_detect_stop_uses_gps_timestamps_with_tracking_gaps(self):
+        """Stay is measured by reading times in one ~15 km area, not continuous uptime."""
+        now = timezone.now()
+        first = LocationReport.objects.create(user=self.user, location=Point(21.0122, 52.2297))
+        second = LocationReport.objects.create(user=self.user, location=Point(21.0222, 52.2310))
+        LocationReport.objects.filter(pk=first.pk).update(timestamp=now - timedelta(minutes=45))
+        # Gap in tracking (app off), then another reading still in the same place.
+        LocationReport.objects.filter(pk=second.pk).update(timestamp=now - timedelta(minutes=5))
+
+        HitchwikiSpot.objects.create(
+            external_id="spot-gap",
+            title="Nearby hitch spot",
+            location=Point(21.0322, 52.2297),
+            rating=4.0,
+        )
+
+        stop = detect_stationary_stop(self.team, now=now)
+
+        self.assertIsNotNone(stop)
+        self.assertGreaterEqual(stop.duration_seconds, 30 * 60)
+        self.assertTrue(stop.recommendations.exists())
+
+    def test_detect_stop_ignores_short_visits_and_far_moves(self):
+        now = timezone.now()
+        near = LocationReport.objects.create(user=self.user, location=Point(21.0122, 52.2297))
+        LocationReport.objects.filter(pk=near.pk).update(timestamp=now - timedelta(minutes=10))
+        LocationReport.objects.create(user=self.user, location=Point(21.0130, 52.2300))
+
+        self.assertIsNone(detect_stationary_stop(self.team, now=now))
+
+        far = LocationReport.objects.create(user=self.user, location=Point(22.5, 53.5))
+        LocationReport.objects.filter(pk=far.pk).update(timestamp=now)
+        # Latest fix is far away — previous cluster must not trigger.
+        self.assertIsNone(detect_stationary_stop(self.team, now=now))
 
 
 class LocationReportModelTests(TransactionTestCase):

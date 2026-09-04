@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Eurorace live</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <style>
     body {
       margin: 0;
@@ -24,6 +24,7 @@
     }
     #map {
       min-height: 560px;
+      width: 100%;
     }
     #teams {
       overflow: auto;
@@ -82,6 +83,26 @@
       box-shadow: 0 0 0 1px rgba(0,0,0,.3);
       display: inline-block;
     }
+    .maplibregl-popup-content {
+      color: #111827;
+    }
+    .marker-label {
+      background: #ef4444;
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .photo-marker {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #4ade80;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.25);
+    }
     @media (max-width: 900px) {
       main {
         grid-template-columns: 1fr;
@@ -102,17 +123,42 @@
     <section id="teams" aria-live="polite"></section>
   </main>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script>
-    const map = L.map("map").setView([52.2297, 21.0122], 6);
+    const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+    const map = new maplibregl.Map({
+      container: "map",
+      style: STYLE_URL,
+      center: [19.1451, 51.9194],
+      zoom: 5.6,
+      attributionControl: true,
+    });
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+
     const markers = new Map();
     let destinationMarker = null;
     const teamColors = ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7", "#14b8a6"];
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap"
-    }).addTo(map);
+    function preferPolishLabels() {
+      const style = map.getStyle();
+      if (!style || !style.layers) return;
+      for (const layer of style.layers) {
+        if (layer.type !== "symbol" || !layer.layout || !layer.layout["text-field"]) continue;
+        try {
+          map.setLayoutProperty(layer.id, "text-field", [
+            "coalesce",
+            ["get", "name:pl"],
+            ["get", "name:latin"],
+            ["get", "name"],
+          ]);
+        } catch (_) {
+          // Some layers use expressions that cannot be overridden safely.
+        }
+      }
+    }
+
+    map.on("load", preferPolishLabels);
+    map.on("styledata", preferPolishLabels);
 
     function formatDistance(meters) {
       if (!meters) return "0 km";
@@ -130,22 +176,31 @@
       return `${teamId}:${memberId ?? "default"}`;
     }
 
-    function createDotIcon(color) {
-      return L.divIcon({
-        className: "",
-        html: `<span class="member-dot" style="background:${color}"></span>`,
-        iconSize: [18, 18],
-        iconAnchor: [9, 9],
-      });
+    function createDotElement(color) {
+      const el = document.createElement("span");
+      el.className = "member-dot";
+      el.style.background = color;
+      return el;
     }
 
-    function createPhotoIcon(photoUrl) {
-      return L.divIcon({
-        className: "",
-        html: `<img src="${photoUrl}" class="team-avatar" alt="">`,
-        iconSize: [36, 36],
-        iconAnchor: [18, 18],
-      });
+    function createPhotoElement(photoUrl) {
+      const el = document.createElement("img");
+      el.src = photoUrl;
+      el.className = "photo-marker";
+      el.alt = "";
+      return el;
+    }
+
+    function setMarker(key, lngLat, element, popupHtml) {
+      if (markers.has(key)) {
+        markers.get(key).remove();
+        markers.delete(key);
+      }
+      const marker = new maplibregl.Marker({ element })
+        .setLngLat(lngLat)
+        .setPopup(new maplibregl.Popup({ offset: 12 }).setHTML(popupHtml))
+        .addTo(map);
+      markers.set(key, marker);
     }
 
     function renderDestination(destination) {
@@ -156,20 +211,19 @@
         }
         return;
       }
-      const latLng = [destination.latitude, destination.longitude];
+      const lngLat = [destination.longitude, destination.latitude];
       const label = destination.name || "Meta";
       if (destinationMarker) {
-        destinationMarker.setLatLng(latLng);
-        destinationMarker.bindPopup(`<strong>Meta: ${label}</strong>`);
-      } else {
-        destinationMarker = L.marker(latLng, {
-          icon: L.divIcon({
-            className: "",
-            html: `<span style="background:#ef4444;color:#fff;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700;">META</span>`,
-            iconAnchor: [24, 12],
-          }),
-        }).addTo(map).bindPopup(`<strong>Meta: ${label}</strong>`);
+        destinationMarker.remove();
+        destinationMarker = null;
       }
+      const el = document.createElement("span");
+      el.className = "marker-label";
+      el.textContent = "META";
+      destinationMarker = new maplibregl.Marker({ element: el })
+        .setLngLat(lngLat)
+        .setPopup(new maplibregl.Popup({ offset: 12 }).setHTML(`<strong>Meta: ${label}</strong>`))
+        .addTo(map);
     }
 
     function renderTeams(teams) {
@@ -186,18 +240,12 @@
         locations.forEach((location) => {
           const key = markerKey(team.team_id, location.member_id);
           seen.add(key);
-          const latLng = [location.latitude, location.longitude];
-          const icon = team.profile_photo_url
-            ? createPhotoIcon(team.profile_photo_url)
-            : createDotIcon(color);
+          const lngLat = [location.longitude, location.latitude];
+          const element = team.profile_photo_url
+            ? createPhotoElement(team.profile_photo_url)
+            : createDotElement(color);
           const popup = `<strong>${team.bib_number ? `#${team.bib_number} ` : ""}${team.display_name}</strong><br>${location.member_name || ""}`;
-          if (markers.has(key)) {
-            markers.get(key).setLatLng(latLng);
-            markers.get(key).setIcon(icon);
-            markers.get(key).bindPopup(popup);
-          } else {
-            markers.set(key, L.marker(latLng, { icon }).addTo(map).bindPopup(popup));
-          }
+          setMarker(key, lngLat, element, popup);
         });
 
         const stats = team.statistics || {};

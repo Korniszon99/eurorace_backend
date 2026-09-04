@@ -21,10 +21,19 @@ from eurorace.models import (
 from eurorace.task_models import UserTask
 
 EARTH_RADIUS_METERS = 6_371_000
+# Same place ≈ within this radius of the latest GPS reading.
 STOP_RADIUS_METERS = 15_000
+# Wall-clock span between first and last reading in that place (not app uptime).
 STOP_MIN_DURATION = timedelta(minutes=30)
+# How far back we look for a stay cluster (gaps in tracking are OK).
+STOP_LOOKBACK = timedelta(hours=12)
+# Ignore stale last fixes — team is not actively waiting for a ride.
+STOP_MAX_STALENESS = timedelta(hours=2)
+# Don't regenerate Hitchwiki tips on every ping once we have fresh ones.
+RECOMMENDATION_REFRESH = timedelta(minutes=10)
 RECOMMENDATION_RADIUS_METERS = 25_000
 DEFAULT_RECOMMENDATION_LIMIT = 5
+STOP_MIN_REPORTS = 2
 
 
 def haversine_distance_meters(first, second):
@@ -115,33 +124,64 @@ def _centroid_for_reports(reports):
     return Point(lon, lat, srid=4326)
 
 
+def _cluster_reports_around_latest(reports):
+    """
+    Walk backwards from the newest GPS fix and keep points still in the same ~15 km area.
+    Duration comes from reading timestamps, so intermittent tracking still counts as a stay.
+    """
+    if len(reports) < STOP_MIN_REPORTS:
+        return []
+
+    latest = reports[-1]
+    cluster = [latest]
+    for report in reversed(reports[:-1]):
+        if haversine_distance_meters(latest.location, report.location) <= STOP_RADIUS_METERS:
+            cluster.append(report)
+        else:
+            # Left the area earlier — only the current stay matters.
+            break
+    cluster.reverse()
+    return cluster
+
+
 def detect_stationary_stop(team, now=None):
+    """
+    Detect that a team likely needs a hitchhiking hotspot.
+
+    Criteria (place + GPS time, not continuous app session):
+    - latest reading is fresh enough
+    - consecutive history around that place stays within STOP_RADIUS_METERS
+    - span between first and last reading timestamps >= STOP_MIN_DURATION
+    """
     if not team:
         return None
 
     now = now or timezone.now()
-    window_start = now - STOP_MIN_DURATION
-    reports = list(get_team_location_reports(team).filter(timestamp__gte=window_start))
-    if len(reports) < 2:
+    lookback_start = now - STOP_LOOKBACK
+    reports = list(
+        get_team_location_reports(team).filter(timestamp__gte=lookback_start).order_by("timestamp")
+    )
+    cluster = _cluster_reports_around_latest(reports)
+    if len(cluster) < STOP_MIN_REPORTS:
         return None
 
-    started_at = reports[0].timestamp
-    ended_at = reports[-1].timestamp
+    started_at = cluster[0].timestamp
+    ended_at = cluster[-1].timestamp
+    if now - ended_at > STOP_MAX_STALENESS:
+        return None
     if ended_at - started_at < STOP_MIN_DURATION:
         return None
 
-    centroid = _centroid_for_reports(reports)
-    radius_meters = max(haversine_distance_meters(centroid, report.location) for report in reports)
-    if radius_meters > STOP_RADIUS_METERS:
-        return None
+    centroid = _centroid_for_reports(cluster)
+    radius_meters = max(haversine_distance_meters(centroid, report.location) for report in cluster)
+    duration_seconds = int((ended_at - started_at).total_seconds())
 
     recent_stop = (
-        DetectedStop.objects.filter(team=team, ended_at__gte=window_start)
+        DetectedStop.objects.filter(team=team, ended_at__gte=lookback_start)
         .order_by("-ended_at")
         .first()
     )
-    duration_seconds = int((ended_at - started_at).total_seconds())
-    if recent_stop:
+    if recent_stop and haversine_distance_meters(recent_stop.location, centroid) <= STOP_RADIUS_METERS:
         recent_stop.started_at = min(recent_stop.started_at, started_at)
         recent_stop.ended_at = ended_at
         recent_stop.location = centroid
@@ -161,7 +201,13 @@ def detect_stationary_stop(team, now=None):
             duration_seconds=duration_seconds,
         )
 
-    recommend_hitchwiki_spots(stop)
+    needs_refresh = (
+        stop.recommendation_generated_at is None
+        or now - stop.recommendation_generated_at >= RECOMMENDATION_REFRESH
+        or not stop.recommendations.exists()
+    )
+    if needs_refresh:
+        recommend_hitchwiki_spots(stop)
     update_team_statistics(team)
     return stop
 

@@ -238,3 +238,27 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # Optional provider endpoint returning Hitchwiki-compatible nearby spots as JSON.
 HITCHWIKI_SPOTS_URL = env.str("HITCHWIKI_SPOTS_URL", default="")
+
+# Admin geo widgets: Leaflet shell + MapLibre GL basemap (Polish labels via OpenFreeMap).
+LEAFLET_CONFIG = {
+    "DEFAULT_CENTER": (52.1, 19.4),
+    "DEFAULT_ZOOM": 6,
+    "MIN_ZOOM": 3,
+    "MAX_ZOOM": 18,
+    "RESET_VIEW": False,
+    # No OSM raster tiles — MapLibre style is attached in eurorace/static/eurorace/maplibre_admin.js
+    "TILES": [],
+    "PLUGINS": {
+        "maplibre": {
+            "css": [
+                "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css",
+            ],
+            "js": [
+                "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js",
+                "https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js",
+                "eurorace/maplibre_admin.js",
+            ],
+            "auto-include": True,
+        },
+    },
+}
