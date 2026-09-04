@@ -290,23 +290,27 @@ HITCHWIKI_AI_STUB_COMMIT = env.str(
     default="master",
 )
 
-# Admin geo widgets: Leaflet shell + MapLibre GL basemap (Polish labels via OpenFreeMap).
+# Admin geo widgets: Leaflet shell + MapLibre GL basemap (Polish labels via OpenFreeMap)
+# plus leaflet-control-geocoder (Photon) for place search. See maplibre_admin.js.
 LEAFLET_CONFIG = {
     "DEFAULT_CENTER": (52.1, 19.4),
     "DEFAULT_ZOOM": 6,
     "MIN_ZOOM": 3,
     "MAX_ZOOM": 18,
     "RESET_VIEW": False,
-    # No OSM raster tiles — MapLibre style is attached in eurorace/static/eurorace/maplibre_admin.js
+    # No OSM raster tiles — MapLibre (or Carto fallback) is attached in maplibre_admin.js
     "TILES": [],
     "PLUGINS": {
         "maplibre": {
             "css": [
                 "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css",
+                "https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.css",
+                "eurorace/maplibre_admin.css",
             ],
             "js": [
                 "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js",
                 "https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js",
+                "https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.js",
                 "eurorace/maplibre_admin.js",
             ],
             "auto-include": True,

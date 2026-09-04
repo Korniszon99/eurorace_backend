@@ -1,0 +1,33 @@
+/* Geocoder control readable on Jazzmin / dark Django admin */
+.leaflet-control-geocoder {
+  z-index: 1000;
+}
+
+.leaflet-control-geocoder-form input {
+  min-width: 220px;
+  font-size: 13px;
+}
+
+.leaflet-control-geocoder-alternatives {
+  max-height: 240px;
+  overflow: auto;
+  background: #fff;
+  color: #111;
+}
+
+.leaflet-control-geocoder-alternatives a {
+  color: #111;
+}
+
+/* Keep MapLibre canvas under draw tools / markers */
+.leaflet-maplibre-gl,
+.maplibregl-map {
+  z-index: 0 !important;
+}
+
+.leaflet-overlay-pane,
+.leaflet-marker-pane,
+.leaflet-tooltip-pane,
+.leaflet-popup-pane {
+  z-index: 600;
+}
