@@ -69,11 +69,12 @@ class LocationReportSerializer(serializers.ModelSerializer):
 class TaskPhotoSerializer(serializers.ModelSerializer):
     location = LocationSerializer(required=False, allow_null=True)
     url = serializers.SerializerMethodField()
+    uploaded_by = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = TaskPhoto
-        fields = ("id", "task", "image", "url", "uploaded_at", "location")
-        read_only_fields = ("id", "url", "uploaded_at")
+        fields = ("id", "task", "image", "url", "uploaded_at", "location", "uploaded_by")
+        read_only_fields = ("id", "url", "uploaded_at", "uploaded_by")
         extra_kwargs = {
             "image": {"write_only": True},
             "task": {"write_only": True},
@@ -96,8 +97,8 @@ class UserTaskStatusSerializer(serializers.ModelSerializer):
 
 
 class TaskSerializer(serializers.ModelSerializer):
-    location = LocationSerializer()
-    photos = TaskPhotoSerializer(many=True, read_only=True)
+    location = LocationSerializer(required=False, allow_null=True)
+    photos = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     assigned_to = serializers.StringRelatedField()
     user_status = serializers.SerializerMethodField()
@@ -130,6 +131,14 @@ class TaskSerializer(serializers.ModelSerializer):
             return user_task.status
         except UserTask.DoesNotExist:
             return 'pending'  # Domyślny status, jeśli nie znaleziono UserTask
+
+    def get_photos(self, obj):
+        """Zwraca dowody tylko bieżącego uczestnika (pinezki = miejsce uploadu)."""
+        request = self.context.get('request')
+        photos = obj.photos.all()
+        if request and request.user.is_authenticated and not request.user.is_staff:
+            photos = photos.filter(uploaded_by=request.user)
+        return TaskPhotoSerializer(photos, many=True, context=self.context).data
 
 
 class UserTrackSerializer(serializers.ModelSerializer):

@@ -201,7 +201,7 @@ class TaskViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Sprawdź, czy podano współrzędne
+        # Współrzędne opcjonalne — pinezki powstają z lokalizacji uploadu dowodu
         lat = request.data.get('latitude')
         lng = request.data.get('longitude')
         if lat is not None and lng is not None:
@@ -214,11 +214,6 @@ class TaskViewSet(viewsets.ModelViewSet):
                     {'error': 'Nieprawidłowy format współrzędnych'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-        else:
-            return Response(
-                {'error': 'Nie podano współrzędnych (latitude, longitude)'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
 
         # Serializuj i zapisz zadanie
         serializer = self.get_serializer(data=data, context={'request': request})
