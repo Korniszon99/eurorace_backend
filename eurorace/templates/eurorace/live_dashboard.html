@@ -8,9 +8,7 @@
   <style>
     :root {
       --header-h: 72px;
-      --map-w: min(720px, 58vw);
-      --panel-w: 380px;
-      --page-size: 3;
+      --sidebar-w: 380px;
     }
     * { box-sizing: border-box; }
     body {
@@ -38,12 +36,12 @@
     main {
       display: flex;
       align-items: stretch;
+      width: 100%;
       height: calc(100vh - var(--header-h));
-      gap: 0;
     }
     .map-wrap {
-      width: var(--map-w);
-      flex: 0 0 var(--map-w);
+      flex: 1 1 auto;
+      min-width: 0;
       height: 100%;
       position: relative;
       border-right: 1px solid #374151;
@@ -53,9 +51,8 @@
       height: 100%;
     }
     #teams-panel {
-      flex: 1 1 auto;
-      min-width: 300px;
-      max-width: 520px;
+      flex: 0 0 var(--sidebar-w);
+      width: var(--sidebar-w);
       display: flex;
       flex-direction: column;
       background: #111827;
@@ -101,43 +98,62 @@
     }
     #teams {
       overflow: auto;
-      padding: 1rem;
+      padding: .75rem;
       flex: 1 1 auto;
     }
     .team-card {
       border: 1px solid #374151;
       border-radius: 12px;
-      padding: 1rem;
-      margin-bottom: 1rem;
+      padding: .75rem;
+      margin-bottom: .65rem;
       background: #1f2937;
+      cursor: pointer;
+      transition: border-color .15s ease, box-shadow .15s ease;
     }
-    .team-card:last-child {
-      margin-bottom: 0;
+    .team-card:last-child { margin-bottom: 0; }
+    .team-card:hover { border-color: #6b7280; }
+    .team-card.is-selected {
+      border-color: #4ade80;
+      box-shadow: 0 0 0 1px #4ade80;
     }
     .team-card h3 {
-      margin: 0 0 .5rem;
-      font-size: 1.05rem;
+      margin: 0;
+      font-size: 1rem;
       display: flex;
       align-items: center;
       gap: .5rem;
     }
     .team-avatar {
-      width: 36px;
-      height: 36px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       object-fit: cover;
       border: 2px solid #4ade80;
       flex-shrink: 0;
+      cursor: zoom-in;
     }
     .meta {
       color: #d1d5db;
       font-size: .9rem;
     }
+    .team-summary {
+      margin-top: .35rem;
+      color: #9ca3af;
+      font-size: .8rem;
+    }
+    .team-details {
+      display: none;
+      margin-top: .75rem;
+      border-top: 1px solid #374151;
+      padding-top: .75rem;
+    }
+    .team-card.is-selected .team-details {
+      display: block;
+    }
     .stats {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: .5rem;
-      margin-top: .75rem;
     }
     .stat {
       background: #111827;
@@ -162,9 +178,7 @@
       padding: .65rem;
       margin-bottom: .5rem;
     }
-    .task-item:last-child {
-      margin-bottom: 0;
-    }
+    .task-item:last-child { margin-bottom: 0; }
     .task-item .task-title {
       font-size: .9rem;
       font-weight: 600;
@@ -175,16 +189,13 @@
       flex-wrap: wrap;
       gap: .4rem;
     }
-    .task-photos a {
-      display: block;
-      line-height: 0;
-    }
     .task-photos img {
       width: 72px;
       height: 72px;
       object-fit: cover;
       border-radius: 6px;
       border: 1px solid #4b5563;
+      cursor: zoom-in;
     }
     .empty-tasks {
       color: #9ca3af;
@@ -206,6 +217,17 @@
     }
     .maplibregl-popup-content {
       color: #111827;
+      min-width: 160px;
+    }
+    .popup-photo {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #4ade80;
+      display: block;
+      margin: 0 auto .5rem;
+      cursor: zoom-in;
     }
     .marker-label {
       background: #ef4444;
@@ -223,6 +245,30 @@
       object-fit: cover;
       border: 2px solid #4ade80;
       box-shadow: 0 0 0 1px rgba(0,0,0,.25);
+      cursor: pointer;
+    }
+    .photo-marker.is-selected {
+      border-color: #fbbf24;
+      box-shadow: 0 0 0 2px #fbbf24;
+    }
+    .lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0,0,0,.82);
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      cursor: zoom-out;
+    }
+    .lightbox.is-open { display: flex; }
+    .lightbox img {
+      max-width: min(90vw, 640px);
+      max-height: 85vh;
+      border-radius: 12px;
+      border: 2px solid #4ade80;
+      object-fit: contain;
     }
     @media (max-width: 900px) {
       body { overflow: auto; height: auto; }
@@ -236,9 +282,10 @@
         height: 420px;
       }
       #teams-panel {
-        max-width: none;
+        width: 100%;
+        flex: none;
         height: auto;
-        min-height: 50vh;
+        min-height: 45vh;
       }
     }
   </style>
@@ -264,11 +311,14 @@
       <section id="teams" aria-live="polite"></section>
     </aside>
   </main>
+  <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Powiększone zdjęcie">
+    <img id="lightbox-img" src="" alt="">
+  </div>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script>
     const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
-    const PAGE_SIZE = 3;
+    const PAGE_SIZE = 6;
     const map = new maplibregl.Map({
       container: "map",
       style: STYLE_URL,
@@ -284,6 +334,7 @@
 
     let allTeams = [];
     let currentPage = 0;
+    let selectedTeamId = null;
 
     function preferPolishLabels() {
       const style = map.getStyle();
@@ -297,9 +348,7 @@
             ["get", "name:latin"],
             ["get", "name"],
           ]);
-        } catch (_) {
-          // Some layers use expressions that cannot be overridden safely.
-        }
+        } catch (_) {}
       }
     }
 
@@ -321,7 +370,7 @@
     function formatLastSeen(iso) {
       if (!iso) return "brak danych";
       const date = new Date(iso);
-      if (Number.isNaN(date.getTime())) return escapeHtml(iso);
+      if (Number.isNaN(date.getTime())) return String(iso);
       return date.toLocaleString("pl-PL", {
         year: "numeric",
         month: "2-digit",
@@ -344,30 +393,93 @@
       return `${teamId}:${memberId ?? "default"}`;
     }
 
+    function openLightbox(url) {
+      if (!url) return;
+      const box = document.getElementById("lightbox");
+      document.getElementById("lightbox-img").src = url;
+      box.classList.add("is-open");
+    }
+
+    function closeLightbox() {
+      const box = document.getElementById("lightbox");
+      box.classList.remove("is-open");
+      document.getElementById("lightbox-img").src = "";
+    }
+
+    document.getElementById("lightbox").addEventListener("click", closeLightbox);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeLightbox();
+    });
+
+    function teamById(teamId) {
+      return allTeams.find((team) => team.team_id === teamId) || null;
+    }
+
+    function pageForTeam(teamId) {
+      const index = allTeams.findIndex((team) => team.team_id === teamId);
+      if (index < 0) return 0;
+      return Math.floor(index / PAGE_SIZE);
+    }
+
     function createDotElement(color) {
       const el = document.createElement("span");
       el.className = "member-dot";
       el.style.background = color;
+      el.style.width = "18px";
+      el.style.height = "18px";
+      el.style.cursor = "pointer";
       return el;
     }
 
-    function createPhotoElement(photoUrl) {
+    function createPhotoElement(photoUrl, selected) {
       const el = document.createElement("img");
       el.src = photoUrl;
-      el.className = "photo-marker";
+      el.className = "photo-marker" + (selected ? " is-selected" : "");
       el.alt = "";
       return el;
     }
 
-    function setMarker(key, lngLat, element, popupHtml) {
+    function buildPopupHtml(team, location) {
+      const title = `${team.bib_number ? `#${escapeHtml(team.bib_number)} ` : ""}${escapeHtml(team.display_name)}`;
+      const member = escapeHtml(location.member_name || (team.members || []).join(", ") || "");
+      const seen = formatLastSeen(location.timestamp || team.last_seen_at);
+      const photo = team.profile_photo_url
+        ? `<img class="popup-photo" src="${escapeHtml(team.profile_photo_url)}" alt="" data-lightbox="${escapeHtml(team.profile_photo_url)}">`
+        : "";
+      return `
+        ${photo}
+        <strong>${title}</strong><br>
+        ${member ? `${member}<br>` : ""}
+        <span>Ostatnio widziany:<br><strong>${escapeHtml(seen)}</strong></span>
+      `;
+    }
+
+    function setMarker(key, lngLat, element, popupHtml, teamId) {
       if (markers.has(key)) {
         markers.get(key).remove();
         markers.delete(key);
       }
+      const popup = new maplibregl.Popup({ offset: 12 }).setHTML(popupHtml);
+      popup.on("open", () => {
+        const root = popup.getElement();
+        if (!root) return;
+        root.querySelectorAll("[data-lightbox]").forEach((img) => {
+          img.addEventListener("click", (event) => {
+            event.stopPropagation();
+            openLightbox(img.getAttribute("data-lightbox"));
+          });
+        });
+      });
       const marker = new maplibregl.Marker({ element })
         .setLngLat(lngLat)
-        .setPopup(new maplibregl.Popup({ offset: 12 }).setHTML(popupHtml))
+        .setPopup(popup)
         .addTo(map);
+
+      element.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectTeam(teamId, { fromMap: true, markerKey: key });
+      });
+
       markers.set(key, marker);
     }
 
@@ -401,16 +513,19 @@
         const locations = team.member_locations?.length
           ? team.member_locations
           : (team.location ? [team.location] : []);
+        const selected = selectedTeamId === team.team_id;
 
         locations.forEach((location) => {
           const key = markerKey(team.team_id, location.member_id);
           seen.add(key);
           const lngLat = [location.longitude, location.latitude];
           const element = team.profile_photo_url
-            ? createPhotoElement(team.profile_photo_url)
+            ? createPhotoElement(team.profile_photo_url, selected)
             : createDotElement(color);
-          const popup = `<strong>${team.bib_number ? `#${escapeHtml(team.bib_number)} ` : ""}${escapeHtml(team.display_name)}</strong><br>${escapeHtml(location.member_name || "")}`;
-          setMarker(key, lngLat, element, popup);
+          if (selected && !team.profile_photo_url) {
+            element.style.outline = "2px solid #fbbf24";
+          }
+          setMarker(key, lngLat, element, buildPopupHtml(team, location), team.team_id);
         });
       });
 
@@ -442,7 +557,7 @@
       }
       return items.map((task) => {
         const photos = (task.photos || []).map((url) =>
-          `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt=""></a>`
+          `<img src="${escapeHtml(url)}" alt="" data-lightbox="${escapeHtml(url)}">`
         ).join("");
         return `
           <div class="task-item">
@@ -464,39 +579,84 @@
       pageTeams.forEach((team) => {
         const globalIndex = allTeams.indexOf(team);
         const color = teamColors[globalIndex % teamColors.length];
-        const locations = team.member_locations?.length
-          ? team.member_locations
-          : (team.location ? [team.location] : []);
         const stats = team.statistics || {};
         const card = document.createElement("article");
-        card.className = "team-card";
+        card.className = "team-card" + (selectedTeamId === team.team_id ? " is-selected" : "");
+        card.dataset.teamId = String(team.team_id);
+
         const avatar = team.profile_photo_url
-          ? `<img src="${escapeHtml(team.profile_photo_url)}" class="team-avatar" alt="">`
+          ? `<img src="${escapeHtml(team.profile_photo_url)}" class="team-avatar" alt="" data-lightbox="${escapeHtml(team.profile_photo_url)}">`
           : `<span class="member-dot" style="background:${color}"></span>`;
+
         card.innerHTML = `
-          <h3>${avatar} ${team.bib_number ? `#${escapeHtml(team.bib_number)} ` : ""}${escapeHtml(team.display_name)}</h3>
+          <h3>${avatar}<span>${team.bib_number ? `#${escapeHtml(team.bib_number)} ` : ""}${escapeHtml(team.display_name)}</span></h3>
           <div class="meta">${escapeHtml((team.members || []).join(", ") || "Brak wpisanych członków")}</div>
-          <div class="meta" style="margin-top:.35rem">Ostatnio widziany: <strong>${formatLastSeen(team.last_seen_at)}</strong></div>
-          <div class="stats">
-            <div class="stat"><span>Trasa</span><strong>${formatDistance(stats.distance_meters)}</strong></div>
-            <div class="stat"><span>Czas</span><strong>${formatDuration(stats.duration_seconds)}</strong></div>
-            <div class="stat"><span>Przewyższenia</span><strong>${Math.round(stats.elevation_gain_meters || 0)} m</strong></div>
-            <div class="stat"><span>Stopy</span><strong>${stats.hitch_count || 0}</strong></div>
-            <div class="stat"><span>Zadania</span><strong>${team.tasks?.completed || 0}/${team.tasks?.total || 0}</strong></div>
-            <div class="stat"><span>Pozycje</span><strong>${locations.length || 0}</strong></div>
+          <div class="team-summary">Zadania ${team.tasks?.completed || 0}/${team.tasks?.total || 0} · ${formatDistance(stats.distance_meters)} · kliknij po szczegóły</div>
+          <div class="team-details">
+            <div class="stats">
+              <div class="stat"><span>Trasa</span><strong>${formatDistance(stats.distance_meters)}</strong></div>
+              <div class="stat"><span>Czas</span><strong>${formatDuration(stats.duration_seconds)}</strong></div>
+              <div class="stat"><span>Przewyższenia</span><strong>${Math.round(stats.elevation_gain_meters || 0)} m</strong></div>
+              <div class="stat"><span>Stopy</span><strong>${stats.hitch_count || 0}</strong></div>
+              <div class="stat"><span>Zadania</span><strong>${team.tasks?.completed || 0}/${team.tasks?.total || 0}</strong></div>
+            </div>
+            <div class="tasks-section">
+              <h4>Ukończone zadania</h4>
+              ${renderTaskItems(team.tasks)}
+            </div>
+            ${
+              (team.recommendations || []).length
+                ? `<h4 style="margin:.75rem 0 .35rem;font-size:.95rem">Najbliższe miejsca do stopa</h4><ol class="recommendations">${team.recommendations.map((rec) => `<li>${escapeHtml(rec.spot?.title || "")} (${formatDistance(rec.distance_meters)})</li>`).join("")}</ol>`
+                : ""
+            }
           </div>
-          <div class="tasks-section">
-            <h4>Ukończone zadania</h4>
-            ${renderTaskItems(team.tasks)}
-          </div>
-          ${
-            (team.recommendations || []).length
-              ? `<h4 style="margin:.75rem 0 .35rem;font-size:.95rem">Najbliższe miejsca do stopa</h4><ol class="recommendations">${team.recommendations.map((rec) => `<li>${escapeHtml(rec.spot?.title || "")} (${formatDistance(rec.distance_meters)})</li>`).join("")}</ol>`
-              : ""
-          }
         `;
+
+        card.addEventListener("click", (event) => {
+          if (event.target.closest("[data-lightbox]")) {
+            event.stopPropagation();
+            openLightbox(event.target.getAttribute("data-lightbox") || event.target.src);
+            return;
+          }
+          selectTeam(team.team_id, { fromSidebar: true });
+        });
+
         panel.appendChild(card);
       });
+    }
+
+    function openTeamPopup(teamId) {
+      const team = teamById(teamId);
+      if (!team) return;
+      const locations = team.member_locations?.length
+        ? team.member_locations
+        : (team.location ? [team.location] : []);
+      if (!locations.length) return;
+      const key = markerKey(team.team_id, locations[0].member_id);
+      const marker = markers.get(key);
+      if (marker) {
+        marker.togglePopup();
+        if (!marker.getPopup().isOpen()) marker.togglePopup();
+      }
+    }
+
+    function selectTeam(teamId, options = {}) {
+      if (selectedTeamId === teamId && options.fromSidebar) {
+        selectedTeamId = null;
+        updateMapMarkers(allTeams);
+        renderTeamCards();
+        return;
+      }
+      selectedTeamId = teamId;
+      const neededPage = pageForTeam(teamId);
+      if (currentPage !== neededPage) currentPage = neededPage;
+      updateMapMarkers(allTeams);
+      renderTeamCards();
+      if (options.fromMap || options.fromSidebar) {
+        openTeamPopup(teamId);
+      }
+      const card = document.querySelector(`.team-card[data-team-id="${teamId}"]`);
+      if (card) card.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
 
     document.getElementById("prev-page").addEventListener("click", () => {
@@ -519,7 +679,6 @@
       renderDestination(data.destination);
       updateMapMarkers(allTeams);
       renderTeamCards();
-      // MapLibre needs resize after fixed layout settles.
       map.resize();
     }
 
