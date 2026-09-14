@@ -6,30 +6,103 @@
   <title>Eurorace live</title>
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <style>
+    :root {
+      --header-h: 72px;
+      --map-w: min(720px, 58vw);
+      --panel-w: 380px;
+      --page-size: 3;
+    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #111827;
       color: #f9fafb;
+      overflow: hidden;
+      height: 100vh;
     }
     header {
-      padding: 1rem;
+      height: var(--header-h);
+      padding: 0 1rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
       background: #030712;
       border-bottom: 1px solid #374151;
+      flex-shrink: 0;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.35rem;
     }
     main {
-      display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
-      min-height: calc(100vh - 70px);
+      display: flex;
+      align-items: stretch;
+      height: calc(100vh - var(--header-h));
+      gap: 0;
+    }
+    .map-wrap {
+      width: var(--map-w);
+      flex: 0 0 var(--map-w);
+      height: 100%;
+      position: relative;
+      border-right: 1px solid #374151;
     }
     #map {
-      min-height: 560px;
       width: 100%;
+      height: 100%;
+    }
+    #teams-panel {
+      flex: 1 1 auto;
+      min-width: 300px;
+      max-width: 520px;
+      display: flex;
+      flex-direction: column;
+      background: #111827;
+      height: 100%;
+      overflow: hidden;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      padding: .75rem 1rem;
+      border-bottom: 1px solid #374151;
+      flex-shrink: 0;
+    }
+    .panel-header h2 {
+      margin: 0;
+      font-size: 1rem;
+    }
+    .pager {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+    }
+    .pager button {
+      background: #1f2937;
+      color: #f9fafb;
+      border: 1px solid #4b5563;
+      border-radius: 8px;
+      padding: .35rem .65rem;
+      cursor: pointer;
+      font-size: .85rem;
+    }
+    .pager button:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+    .pager span {
+      color: #9ca3af;
+      font-size: .85rem;
+      min-width: 4.5rem;
+      text-align: center;
     }
     #teams {
       overflow: auto;
       padding: 1rem;
-      background: #111827;
+      flex: 1 1 auto;
     }
     .team-card {
       border: 1px solid #374151;
@@ -38,9 +111,12 @@
       margin-bottom: 1rem;
       background: #1f2937;
     }
-    .team-card h2 {
+    .team-card:last-child {
+      margin-bottom: 0;
+    }
+    .team-card h3 {
       margin: 0 0 .5rem;
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       display: flex;
       align-items: center;
       gap: .5rem;
@@ -51,6 +127,7 @@
       border-radius: 50%;
       object-fit: cover;
       border: 2px solid #4ade80;
+      flex-shrink: 0;
     }
     .meta {
       color: #d1d5db;
@@ -71,9 +148,52 @@
       display: block;
       font-size: 1.05rem;
     }
+    .tasks-section {
+      margin-top: .9rem;
+    }
+    .tasks-section h4 {
+      margin: 0 0 .5rem;
+      font-size: .95rem;
+      color: #e5e7eb;
+    }
+    .task-item {
+      background: #111827;
+      border-radius: 8px;
+      padding: .65rem;
+      margin-bottom: .5rem;
+    }
+    .task-item:last-child {
+      margin-bottom: 0;
+    }
+    .task-item .task-title {
+      font-size: .9rem;
+      font-weight: 600;
+      margin-bottom: .4rem;
+    }
+    .task-photos {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .4rem;
+    }
+    .task-photos a {
+      display: block;
+      line-height: 0;
+    }
+    .task-photos img {
+      width: 72px;
+      height: 72px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #4b5563;
+    }
+    .empty-tasks {
+      color: #9ca3af;
+      font-size: .85rem;
+    }
     .recommendations {
       margin-top: .75rem;
       padding-left: 1.25rem;
+      font-size: .9rem;
     }
     .member-dot {
       width: 14px;
@@ -82,6 +202,7 @@
       border: 2px solid #fff;
       box-shadow: 0 0 0 1px rgba(0,0,0,.3);
       display: inline-block;
+      flex-shrink: 0;
     }
     .maplibregl-popup-content {
       color: #111827;
@@ -104,11 +225,20 @@
       box-shadow: 0 0 0 1px rgba(0,0,0,.25);
     }
     @media (max-width: 900px) {
+      body { overflow: auto; height: auto; }
       main {
-        grid-template-columns: 1fr;
+        flex-direction: column;
+        height: auto;
       }
-      #map {
-        min-height: 420px;
+      .map-wrap {
+        width: 100%;
+        flex: none;
+        height: 420px;
+      }
+      #teams-panel {
+        max-width: none;
+        height: auto;
+        min-height: 50vh;
       }
     }
   </style>
@@ -119,13 +249,26 @@
     <div class="meta">Pozycje, statystyki i zadania uczestników odświeżane automatycznie.</div>
   </header>
   <main>
-    <div id="map"></div>
-    <section id="teams" aria-live="polite"></section>
+    <div class="map-wrap">
+      <div id="map"></div>
+    </div>
+    <aside id="teams-panel">
+      <div class="panel-header">
+        <h2>Uczestnicy</h2>
+        <div class="pager">
+          <button type="button" id="prev-page" aria-label="Poprzednia strona">←</button>
+          <span id="page-label">1 / 1</span>
+          <button type="button" id="next-page" aria-label="Następna strona">→</button>
+        </div>
+      </div>
+      <section id="teams" aria-live="polite"></section>
+    </aside>
   </main>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script>
     const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+    const PAGE_SIZE = 3;
     const map = new maplibregl.Map({
       container: "map",
       style: STYLE_URL,
@@ -138,6 +281,9 @@
     const markers = new Map();
     let destinationMarker = null;
     const teamColors = ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7", "#14b8a6"];
+
+    let allTeams = [];
+    let currentPage = 0;
 
     function preferPolishLabels() {
       const style = map.getStyle();
@@ -170,6 +316,28 @@
       const hours = Math.floor(seconds / 3600);
       const minutes = Math.floor((seconds % 3600) / 60);
       return `${hours} h ${minutes} min`;
+    }
+
+    function formatLastSeen(iso) {
+      if (!iso) return "brak danych";
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) return escapeHtml(iso);
+      return date.toLocaleString("pl-PL", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
     }
 
     function markerKey(teamId, memberId) {
@@ -222,15 +390,12 @@
       el.textContent = "META";
       destinationMarker = new maplibregl.Marker({ element: el })
         .setLngLat(lngLat)
-        .setPopup(new maplibregl.Popup({ offset: 12 }).setHTML(`<strong>Meta: ${label}</strong>`))
+        .setPopup(new maplibregl.Popup({ offset: 12 }).setHTML(`<strong>Meta: ${escapeHtml(label)}</strong>`))
         .addTo(map);
     }
 
-    function renderTeams(teams) {
-      const panel = document.getElementById("teams");
-      panel.innerHTML = "";
+    function updateMapMarkers(teams) {
       const seen = new Set();
-
       teams.forEach((team, teamIndex) => {
         const color = teamColors[teamIndex % teamColors.length];
         const locations = team.member_locations?.length
@@ -244,34 +409,9 @@
           const element = team.profile_photo_url
             ? createPhotoElement(team.profile_photo_url)
             : createDotElement(color);
-          const popup = `<strong>${team.bib_number ? `#${team.bib_number} ` : ""}${team.display_name}</strong><br>${location.member_name || ""}`;
+          const popup = `<strong>${team.bib_number ? `#${escapeHtml(team.bib_number)} ` : ""}${escapeHtml(team.display_name)}</strong><br>${escapeHtml(location.member_name || "")}`;
           setMarker(key, lngLat, element, popup);
         });
-
-        const stats = team.statistics || {};
-        const card = document.createElement("article");
-        card.className = "team-card";
-        const avatar = team.profile_photo_url
-          ? `<img src="${team.profile_photo_url}" class="team-avatar" alt="">`
-          : `<span class="member-dot" style="background:${color}"></span>`;
-        card.innerHTML = `
-          <h2>${avatar} ${team.bib_number ? `#${team.bib_number} ` : ""}${team.display_name}</h2>
-          <div class="meta">${team.members.join(", ") || "Brak wpisanych członków"}</div>
-          <div class="stats">
-            <div class="stat"><span>Trasa</span><strong>${formatDistance(stats.distance_meters)}</strong></div>
-            <div class="stat"><span>Czas</span><strong>${formatDuration(stats.duration_seconds)}</strong></div>
-            <div class="stat"><span>Przewyższenia</span><strong>${Math.round(stats.elevation_gain_meters || 0)} m</strong></div>
-            <div class="stat"><span>Stopy</span><strong>${stats.hitch_count || 0}</strong></div>
-            <div class="stat"><span>Zadania</span><strong>${team.tasks.completed}/${team.tasks.total}</strong></div>
-            <div class="stat"><span>Pozycje</span><strong>${locations.length || 0}</strong></div>
-          </div>
-          ${
-            team.recommendations.length
-              ? `<h3>Najbliższe miejsca do stopa</h3><ol class="recommendations">${team.recommendations.map((rec) => `<li>${rec.spot.title} (${formatDistance(rec.distance_meters)})</li>`).join("")}</ol>`
-              : ""
-          }
-        `;
-        panel.appendChild(card);
       });
 
       for (const [key, marker] of markers.entries()) {
@@ -282,15 +422,110 @@
       }
     }
 
+    function totalPages() {
+      return Math.max(1, Math.ceil(allTeams.length / PAGE_SIZE));
+    }
+
+    function renderPager() {
+      const pages = totalPages();
+      if (currentPage >= pages) currentPage = pages - 1;
+      if (currentPage < 0) currentPage = 0;
+      document.getElementById("page-label").textContent = `${currentPage + 1} / ${pages}`;
+      document.getElementById("prev-page").disabled = currentPage <= 0;
+      document.getElementById("next-page").disabled = currentPage >= pages - 1;
+    }
+
+    function renderTaskItems(tasks) {
+      const items = tasks?.items || [];
+      if (!items.length) {
+        return `<div class="empty-tasks">Brak ukończonych zadań</div>`;
+      }
+      return items.map((task) => {
+        const photos = (task.photos || []).map((url) =>
+          `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt=""></a>`
+        ).join("");
+        return `
+          <div class="task-item">
+            <div class="task-title">${escapeHtml(task.title)}</div>
+            ${photos ? `<div class="task-photos">${photos}</div>` : `<div class="empty-tasks">Brak zdjęć</div>`}
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderTeamCards() {
+      const panel = document.getElementById("teams");
+      panel.innerHTML = "";
+      renderPager();
+
+      const start = currentPage * PAGE_SIZE;
+      const pageTeams = allTeams.slice(start, start + PAGE_SIZE);
+
+      pageTeams.forEach((team) => {
+        const globalIndex = allTeams.indexOf(team);
+        const color = teamColors[globalIndex % teamColors.length];
+        const locations = team.member_locations?.length
+          ? team.member_locations
+          : (team.location ? [team.location] : []);
+        const stats = team.statistics || {};
+        const card = document.createElement("article");
+        card.className = "team-card";
+        const avatar = team.profile_photo_url
+          ? `<img src="${escapeHtml(team.profile_photo_url)}" class="team-avatar" alt="">`
+          : `<span class="member-dot" style="background:${color}"></span>`;
+        card.innerHTML = `
+          <h3>${avatar} ${team.bib_number ? `#${escapeHtml(team.bib_number)} ` : ""}${escapeHtml(team.display_name)}</h3>
+          <div class="meta">${escapeHtml((team.members || []).join(", ") || "Brak wpisanych członków")}</div>
+          <div class="meta" style="margin-top:.35rem">Ostatnio widziany: <strong>${formatLastSeen(team.last_seen_at)}</strong></div>
+          <div class="stats">
+            <div class="stat"><span>Trasa</span><strong>${formatDistance(stats.distance_meters)}</strong></div>
+            <div class="stat"><span>Czas</span><strong>${formatDuration(stats.duration_seconds)}</strong></div>
+            <div class="stat"><span>Przewyższenia</span><strong>${Math.round(stats.elevation_gain_meters || 0)} m</strong></div>
+            <div class="stat"><span>Stopy</span><strong>${stats.hitch_count || 0}</strong></div>
+            <div class="stat"><span>Zadania</span><strong>${team.tasks?.completed || 0}/${team.tasks?.total || 0}</strong></div>
+            <div class="stat"><span>Pozycje</span><strong>${locations.length || 0}</strong></div>
+          </div>
+          <div class="tasks-section">
+            <h4>Ukończone zadania</h4>
+            ${renderTaskItems(team.tasks)}
+          </div>
+          ${
+            (team.recommendations || []).length
+              ? `<h4 style="margin:.75rem 0 .35rem;font-size:.95rem">Najbliższe miejsca do stopa</h4><ol class="recommendations">${team.recommendations.map((rec) => `<li>${escapeHtml(rec.spot?.title || "")} (${formatDistance(rec.distance_meters)})</li>`).join("")}</ol>`
+              : ""
+          }
+        `;
+        panel.appendChild(card);
+      });
+    }
+
+    document.getElementById("prev-page").addEventListener("click", () => {
+      if (currentPage > 0) {
+        currentPage -= 1;
+        renderTeamCards();
+      }
+    });
+    document.getElementById("next-page").addEventListener("click", () => {
+      if (currentPage < totalPages() - 1) {
+        currentPage += 1;
+        renderTeamCards();
+      }
+    });
+
     async function refresh() {
       const response = await fetch("{% url 'live-dashboard-data' %}");
       const data = await response.json();
+      allTeams = data.teams || [];
       renderDestination(data.destination);
-      renderTeams(data.teams);
+      updateMapMarkers(allTeams);
+      renderTeamCards();
+      // MapLibre needs resize after fixed layout settles.
+      map.resize();
     }
 
     refresh();
     setInterval(refresh, 15000);
+    window.addEventListener("resize", () => map.resize());
   </script>
 </body>
 </html>

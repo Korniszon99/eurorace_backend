@@ -427,11 +427,40 @@ def live_dashboard_data(request):
         member_key = report.team_member_id or 0
         latest_member_locations.setdefault(team_id, {})[member_key] = report
 
+    account_user_ids = [team.account_user_id for team in teams if team.account_user_id]
+    user_tasks_by_user = {}
+    for user_task in (
+        UserTask.objects.filter(user_id__in=account_user_ids)
+        .select_related("task")
+        .order_by("task__title")
+    ):
+        user_tasks_by_user.setdefault(user_task.user_id, []).append(user_task)
+
+    photos_by_user_task = {}
+    for photo in TaskPhoto.objects.filter(uploaded_by_id__in=account_user_ids).order_by("uploaded_at"):
+        if not photo.image:
+            continue
+        photos_by_user_task.setdefault((photo.uploaded_by_id, photo.task_id), []).append(
+            request.build_absolute_uri(photo.image.url)
+        )
+
     payload = []
     for team in teams:
         statistics = getattr(team, "statistics", None)
-        completed_tasks = UserTask.objects.filter(user=team.account_user, status="completed").count()
-        total_tasks = team.account_user.all_tasks.count()
+        user_tasks = user_tasks_by_user.get(team.account_user_id, [])
+        completed_task_items = []
+        for user_task in user_tasks:
+            if user_task.status != "completed":
+                continue
+            completed_task_items.append({
+                "id": user_task.task_id,
+                "title": user_task.task.title,
+                "photos": photos_by_user_task.get(
+                    (team.account_user_id, user_task.task_id), []
+                ),
+            })
+        completed_tasks = len(completed_task_items)
+        total_tasks = len(user_tasks)
         latest_stop = DetectedStop.objects.filter(team=team).order_by("-ended_at").first()
         recommendations = []
         if latest_stop:
@@ -441,6 +470,7 @@ def live_dashboard_data(request):
             ).data
 
         member_locations = []
+        last_seen_at = None
         team_reports = latest_member_locations.get(team.id, {})
         for member_key, report in team_reports.items():
             member = report.team_member
@@ -452,6 +482,8 @@ def live_dashboard_data(request):
                 "timestamp": report.timestamp.isoformat(),
                 "altitude_m": report.altitude_m,
             })
+            if last_seen_at is None or report.timestamp > last_seen_at:
+                last_seen_at = report.timestamp
 
         profile_photo_url = None
         if team.profile_photo:
@@ -465,10 +497,12 @@ def live_dashboard_data(request):
             "members": [member.full_name for member in team.members.all()],
             "member_locations": member_locations,
             "location": member_locations[0] if len(member_locations) == 1 else None,
+            "last_seen_at": last_seen_at.isoformat() if last_seen_at else None,
             "statistics": None if not statistics else TeamStatisticsSerializer(statistics).data,
             "tasks": {
                 "completed": completed_tasks,
                 "total": total_tasks,
+                "items": completed_task_items,
             },
             "latest_stop": None if not latest_stop else {
                 "started_at": latest_stop.started_at.isoformat(),
