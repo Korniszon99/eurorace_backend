@@ -32,7 +32,7 @@ API do śledzenia lokalizacji użytkowników w czasie rzeczywistym z obsługą W
 **Odpowiedź (sukces):**
 ```json
 {
-    "key": "abc123def456ghi789jkl012mno345pqr678stu"
+    "key": "${AUTH_TOKEN}"
 }
 ```
 
@@ -66,7 +66,7 @@ API do śledzenia lokalizacji użytkowników w czasie rzeczywistym z obsługą W
 **Odpowiedź (sukces):**
 ```json
 {
-    "key": "abc123def456ghi789jkl012mno345pqr678stu",
+    "key": "${AUTH_TOKEN}",
     "user": {
         "pk": 123,
         "username": "john_doe",
@@ -194,7 +194,7 @@ API do śledzenia lokalizacji użytkowników w czasie rzeczywistym z obsługą W
 ```json
 {
     "uid": "MjM",
-    "token": "5wq-988e9ac58dd2793e7a52",
+    "token": "${AUTH_TOKEN}",
     "new_password1": "newpassword123",
     "new_password2": "newpassword123"
 }
@@ -605,7 +605,7 @@ Możesz przetestować endpointy używając narzędzi takich jak Postman lub curl
 
 ```bash
 # Pobierz swoją trasę
-curl -H "Authorization: Token YOUR_TOKEN" \
+curl -H "Authorization: Token ${AUTH_TOKEN}" \
      -H "Content-Type: application/json" \
      http://your-domain/api/location-reports/my_track/
 ```

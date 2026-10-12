@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation placeholders and generated dependency directories"
+paths = ['''(^|/)(node_modules|\.git|\.venv|build|\.dart_tool)/''']
+regexTarget = "match"
+regexes = ['''\$\{?AUTH_TOKEN\}?''']

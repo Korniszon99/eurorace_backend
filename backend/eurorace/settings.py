@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
 from pathlib import Path
+from django.core.exceptions import ImproperlyConfigured
+from django.core.management.utils import get_random_secret_key
 import environ
 
 
@@ -28,13 +30,29 @@ environ.Env.read_env(
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-gcapc1tbt#tir^sqbun!&5+bekf@q%mt^=vn1$bl^e=bny3%0l"
+SECRET_KEY = env.str("SECRET_KEY", default="")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 
-DEBUG = env.bool("DEBUG", default=True)
-
-ALLOWED_HOSTS = ["*"]
+DEBUG = env.bool("DEBUG", default=False)
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured("SECRET_KEY is required in production")
+    SECRET_KEY = get_random_secret_key()
+if not DEBUG and (len(SECRET_KEY) < 50 or len(set(SECRET_KEY)) < 5):
+    raise ImproperlyConfigured("SECRET_KEY must be a strong random key of at least 50 characters")
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"] if DEBUG else [])
+if not DEBUG and (not ALLOWED_HOSTS or "*" in ALLOWED_HOSTS):
+    raise ImproperlyConfigured("Explicit ALLOWED_HOSTS are required in production")
+SECURE_SSL_REDIRECT = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+if env.bool("TRUST_PROXY", default=False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
 # Application definition
@@ -117,7 +135,7 @@ DATABASES = {
         "ENGINE": "django.contrib.gis.db.backends.postgis",
         "NAME": env.str("DB_NAME", default="eurorace"),
         "USER": env.str("DB_USER", default="postgres"),
-        "PASSWORD": env.str("DB_PASSWORD", default="postgres"),
+        "PASSWORD": env.str("DB_PASSWORD", default="postgres" if DEBUG else ""),
         "HOST": env.str("DB_HOST", default="localhost"),
         "PORT": env.str("DB_PORT", default="5432"),
     }
@@ -217,4 +235,8 @@ DEFAULT_FROM_EMAIL = env.str("EMAIL_HOST_USER", default="webmaster@localhost")
 EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
 
 # Konfiguracja CORS
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
+
+if not DEBUG and not DATABASES["default"]["PASSWORD"]:
+    raise ImproperlyConfigured("DB_PASSWORD is required in production")
