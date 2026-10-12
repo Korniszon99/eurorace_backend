@@ -21,11 +21,19 @@ class LocationReportViewSet(viewsets.ModelViewSet):
     serializer_class = LocationReportSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return LocationReport.objects.all()
+        return LocationReport.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
     @extend_schema(
         responses=LocationReportSerializer(many=True),
         description="Pobiera najnowsze lokalizacje wszystkich użytkowników"
     )
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
     def latest(self, request):
         """Endpoint zwracający najnowsze lokalizacje wszystkich użytkowników zgodnie z dokumentacją API"""
         # Pobierz najnowsze lokalizacje dla wszystkich użytkowników
@@ -132,6 +140,11 @@ class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in {"create", "update", "partial_update", "destroy", "create_task"}:
+            return [IsAdminUser()]
+        return super().get_permissions()
 
     def get_queryset(self):
         # Filtrowanie zadań dostępnych dla użytkownika

@@ -1,15 +1,4 @@
-[project]
-name = "eurorace-backend"
-version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.13"
-dependencies = [
-    "channels>=4.2.2",
-    "dj-rest-auth>=7.0.1",
-    "django>=5.2.1",
-    "django-allauth>=65.8.1",
-    "django-environ>=0.12.0",
-    "djangorestframework>=3.16.0",
-    "drf-spectacular>=0.28.0",
-    "leaflet>=0.0.3",
-]
+# Install the actual application from backend/ with `pip install -e ./backend`.
+# Dependencies are intentionally maintained in backend/pyproject.toml only.
+[tool.ruff]
+target-version = "py311"

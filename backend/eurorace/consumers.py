@@ -1,3 +1,4 @@
+import math
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.gis.geos import Point
@@ -45,8 +46,16 @@ class LocationConsumer(AsyncJsonWebsocketConsumer):
     # Receive message from WebSocket
     async def receive_json(self, content):
         if content.get("type", None) == "location_update":
-            latitude = content["latitude"]
-            longitude = content["longitude"]
+            try:
+                raw_lat, raw_lon = content.get("latitude"), content.get("longitude")
+                if isinstance(raw_lat, bool) or isinstance(raw_lon, bool):
+                    raise ValueError
+                latitude, longitude = float(raw_lat), float(raw_lon)
+                if not math.isfinite(latitude) or not math.isfinite(longitude) or not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+                    raise ValueError
+            except (TypeError, ValueError):
+                await self.send_json({"type": "location_saved", "success": False, "error": "Invalid WGS84 coordinates"})
+                return
 
             # Save location to database
             await self.save_location(latitude, longitude)
@@ -71,7 +80,7 @@ class LocationConsumer(AsyncJsonWebsocketConsumer):
         """Get user from token"""
         try:
             token = Token.objects.get(key=token_key)
-            return token.user
+            return token.user if token.user.is_active else None
         except Token.DoesNotExist:
             return None
 

@@ -45,10 +45,10 @@ class LocationConsumerTests(TransactionTestCase):
         self.user = await self.create_test_user()
 
         # Connect to the WebSocket
-        communicator = WebsocketCommunicator(application, "ws/location/")
+        token = await self.create_test_token(self.user)
+        communicator = WebsocketCommunicator(application, "ws/location/", subprotocols=["Token", token], headers=[(b"origin", b"http://localhost")])
 
         # Manually set the user in the scope (simulating authentication)
-        communicator.scope["user"] = self.user
 
         connected, _ = await communicator.connect()
 
@@ -64,10 +64,10 @@ class LocationConsumerTests(TransactionTestCase):
         self.user = await self.create_test_user()
 
         # Connect to the WebSocket
-        communicator = WebsocketCommunicator(application, "ws/location/")
+        token = await self.create_test_token(self.user)
+        communicator = WebsocketCommunicator(application, "ws/location/", subprotocols=["Token", token], headers=[(b"origin", b"http://localhost")])
 
         # Manually set the user in the scope (simulating authentication)
-        communicator.scope["user"] = self.user
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
@@ -110,6 +110,11 @@ class LocationConsumerTests(TransactionTestCase):
         for conn in connections.all():
             await database_sync_to_async(conn.close)()
         await super().asyncTearDown()
+
+    @database_sync_to_async
+    def create_test_token(self, user):
+        from rest_framework.authtoken.models import Token
+        return Token.objects.get_or_create(user=user)[0].key
 
     @database_sync_to_async
     def create_test_user(self):

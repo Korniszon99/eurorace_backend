@@ -1,5 +1,6 @@
 from drf_extra_fields.geo_fields import PointField
 from rest_framework import serializers
+import math
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from django.contrib.gis.geos import Point
 
@@ -43,7 +44,15 @@ class LocationSerializer(serializers.Serializer):
                 'location': 'Wymagane są oba pola: latitude i longitude.'
             })
 
-        return Point(longitude, latitude)  # Point przyjmuje (x, y) -> (longitude, latitude)
+        try:
+            if isinstance(latitude, bool) or isinstance(longitude, bool):
+                raise ValueError
+            latitude, longitude = float(latitude), float(longitude)
+            if not math.isfinite(latitude) or not math.isfinite(longitude) or not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+                raise ValueError
+        except (ValueError, TypeError):
+            raise serializers.ValidationError("Invalid WGS84 coordinates")
+        return Point(longitude, latitude)
 
 
 class LocationReportSerializer(serializers.ModelSerializer):
@@ -52,6 +61,7 @@ class LocationReportSerializer(serializers.ModelSerializer):
     class Meta:
         fields = ("location", "timestamp", "user")
         model = LocationReport
+        read_only_fields = ("user", "timestamp")
 
 
 class TaskPhotoSerializer(serializers.ModelSerializer):
@@ -123,6 +133,7 @@ class UserTrackSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LocationReport
+        read_only_fields = ("user", "timestamp")
         fields = ("latitude", "longitude", "timestamp")
 
     def get_latitude(self, obj):

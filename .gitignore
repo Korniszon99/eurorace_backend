@@ -1,1 +1,24 @@
 .idea/
+# Local secrets, generated data and tools
+.env
+.env.*
+!.env.example
+!**/.env.example
+.venv/
+node_modules/
+__pycache__/
+*.py[cod]
+*.log
+*.sqlite3
+*.sqlite3-journal
+*.sqlite
+.idea/
+.DS_Store
+staticfiles/
+build/
+dist/
+coverage/
+.tap/
+.pytest_cache/
+*.egg-info/
+ns_preprocess_staging_*/
