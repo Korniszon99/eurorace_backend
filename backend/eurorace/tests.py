@@ -200,3 +200,39 @@ class LocationReportModelTests(TransactionTestCase):
         # Verify the location coordinates are correct
         self.assertEqual(location_report.location.x, 21.0122)
         self.assertEqual(location_report.location.y, 52.2297)
+
+
+from rest_framework.test import APITestCase
+from eurorace.task_models import Task
+
+
+class ApiIsolationTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username='owner')
+        self.other = User.objects.create_user(username='other')
+        self.report = LocationReport.objects.create(user=self.other, location=Point(21.0, 52.0))
+        LocationReport.objects.create(user=self.owner, location=Point(20.0, 53.0))
+        self.client.force_authenticate(user=self.owner)
+
+    def test_location_list_and_detail_do_not_expose_other_users(self):
+        response = self.client.get('/api/location-reports/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['user'], self.owner.pk)
+        self.assertEqual(self.client.get(f'/api/location-reports/{self.report.pk}/').status_code, 404)
+        self.assertEqual(self.client.get('/api/location-reports/latest/').status_code, 403)
+
+    def test_create_uses_authenticated_identity(self):
+        response = self.client.post('/api/location-reports/', {'user': self.other.pk, 'location': {'latitude': 51.0, 'longitude': 19.0}}, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['user'], self.owner.pk)
+
+    def test_invalid_location_shapes_and_ranges_return_validation_errors(self):
+        for location in ['invalid', [52, 21], {'latitude': 100, 'longitude': 21}, {'latitude': True, 'longitude': 21}, {'latitude': 'bad', 'longitude': 21}]:
+            response = self.client.post('/api/location-reports/', {'location': location}, format='json')
+            self.assertEqual(response.status_code, 400)
+
+    def test_participant_cannot_edit_or_delete_global_task(self):
+        task = Task.objects.create(title='Event task', description='Test')
+        self.assertEqual(self.client.patch(f'/api/tasks/{task.pk}/', {'title': 'Changed'}, format='json').status_code, 403)
+        self.assertEqual(self.client.delete(f'/api/tasks/{task.pk}/').status_code, 403)

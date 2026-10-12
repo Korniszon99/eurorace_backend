@@ -36,6 +36,8 @@ class LocationSerializer(serializers.Serializer):
         return None
 
     def to_internal_value(self, data):
+        if not isinstance(data, dict):
+            raise serializers.ValidationError('Location must be an object')
         latitude = data.get('latitude')
         longitude = data.get('longitude')
 
